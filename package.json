@@ -2,5 +2,8 @@
   "name": "mapeo-web",
   "version": "0.0.0",
   "description": "sync and storage service for mapeo maps",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "routes": "^2.1.0"
+  }
 }

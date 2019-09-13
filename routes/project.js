@@ -1,5 +1,7 @@
 var path = require('path')
 var fs = require('fs')
+var path = require('path')
+var mkdirp = require('mkdirp')
 
 module.exports = {
   overview
@@ -7,19 +9,32 @@ module.exports = {
 
 // TODO: use nanohtml for html escaping of user input
 
-function overview (req, res, q, params, splats) {
+function overview (req, res, q, params, splats, utils) {
   var pid = params.project_id
   var html
 
-  fs.stat(path.join('projects', pid), function (err, stats) {
-    if (err && err.code === 'ENOENT') {
-      done(null, renderNewProject(pid))
-    } else if (err) {
-      done(null, renderError(err))
-    } else {
-      renderProject(pid, done)
-    }
-  })
+  // create a project stub
+  if (q.seed === 'true') {
+    mkdirp(path.join('projects', pid), function (err) {
+      if (err) return done(err)
+      check()
+    })
+  } else {
+    check()
+  }
+
+  function check () {
+    fs.stat(path.join('projects', pid), function (err, stats) {
+      if (err && err.code === 'ENOENT') {
+        done(null, renderNewProject(pid))
+      } else if (err) {
+        done(err)
+      } else {
+        var core = utils.getOrCreateProject(pid)
+        renderProject(core, done)
+      }
+    })
+  }
 
   function done (err, html) {
     var body = `
@@ -27,14 +42,25 @@ function overview (req, res, q, params, splats) {
       <body>
         <h1>project overview</h1>
         <blockquote><i>${pid}</i></blockquote>
-        ${html}
+        ${err ? renderError(err) : html}
       </body>
     `
     res.end(body)
   }
 }
 
-function renderProject (pid, cb) {
+function renderProject (core, cb) {
+  var seen = 0
+  core.osm.ready(function () {
+    core.osm.core.api.types.createReadStream('observation')
+      .on('data', function (entry) {
+        ++seen
+      })
+      .on('end', function () {
+        var html = `<p>${seen} observations`
+        cb(null, html)
+      })
+  })
 }
 
 function renderError (err) {
@@ -48,7 +74,8 @@ function renderNewProject (pid) {
       <i>Warning: this will enable any internet-capable computer with knowledge of this project ID to download & upload data to this project via this service.</i>
     </p>
     <form>
-      <input type="submit" value="seed"></input>
+      <input type="hidden" name="seed" value="true"/>
+      <input type="submit" value="seed"/>
     </form>
   `
 }

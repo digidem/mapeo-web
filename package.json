@@ -7,6 +7,7 @@
     "@mapeo/core": "^7.1.0",
     "mkdirp": "^0.5.1",
     "osm-p2p": "^4.0.2",
+    "rimraf": "^3.0.0",
     "routes": "^2.1.0",
     "safe-fs-blob-store": "^1.0.6"
   }

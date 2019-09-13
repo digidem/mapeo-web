@@ -1,7 +1,7 @@
-var path = require('path')
 var fs = require('fs')
 var path = require('path')
 var mkdirp = require('mkdirp')
+var rimraf = require('rimraf')
 
 module.exports = {
   overview
@@ -12,6 +12,15 @@ module.exports = {
 function overview (req, res, q, params, splats, utils) {
   var pid = params.project_id
   var html
+
+  // delete project
+  if (q.delete === 'true') {
+    utils.removeProject(pid, function (err) {
+      if (err) done(err)
+      else done(null, '<p>project deleted</p>')
+    })
+    return
+  }
 
   // create a project stub
   if (q.seed === 'true') {
@@ -50,17 +59,15 @@ function overview (req, res, q, params, splats, utils) {
 }
 
 function renderProject (core, cb) {
-  var seen = 0
-  core.osm.ready(function () {
-    core.osm.core.api.types.createReadStream('observation')
-      .on('data', function (entry) {
-        ++seen
-      })
-      .on('end', function () {
-        var html = `<p>${seen} observations`
-        cb(null, html)
-      })
-  })
+  var html = `
+    <hr/>
+    <p><font color="red">DANGER ZONE:</font></p>
+    <form>
+      <input type="hidden" name="delete" value="true"/>
+      <input type="submit" value="delete project"/>
+    </form>
+  `
+  cb(null, html)
 }
 
 function renderError (err) {

@@ -1,3 +1,4 @@
+var fs = require('fs')
 var http = require('http')
 var url = require('url')
 var querystring = require('querystring')
@@ -12,7 +13,8 @@ var Blob = require('safe-fs-blob-store')
 var projectCores = {}
 
 var utils = {
-  getOrCreateProject
+  getOrCreateProject,
+  removeProject
 }
 
 var router = routes()
@@ -50,3 +52,11 @@ function getOrCreateProject (pid) {
   }
   return projectCores[pid]
 }
+
+function removeProject (pid, cb) {
+  var core = getOrCreateProject(pid)
+  core.close(function () {
+    fs.rename(path.join('projects', pid), path.join('projects', 'dead-'+String(Math.random()).slice(2)), cb)
+  })
+}
+

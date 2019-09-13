@@ -59,7 +59,7 @@ function overview (req, res, q, params, splats, utils) {
 }
 
 function renderProject (core, cb) {
-  var html = `
+  var footer = `
     <hr/>
     <p><font color="red">DANGER ZONE:</font></p>
     <form>
@@ -67,7 +67,36 @@ function renderProject (core, cb) {
       <input type="submit" value="delete project"/>
     </form>
   `
-  cb(null, html)
+
+  var header = '<h2>GeoJSON filters</h2>'
+  var html = '<ul>'
+  var pending = 1
+  var seen = 0
+  core.osm.ready(function () {
+    core.osm.core.api.types.createReadStream('filter')
+      .on('data', function (entry) {
+        ++pending
+        core.osm.getByVersion(entry.version, function (err, filter) {
+          html += `<li>${filter.name}</li>`
+          ++seen
+          if (!--pending) done()
+        })
+      })
+      .on('end', function () {
+        if(!--pending) {
+          done()
+        }
+      })
+  })
+
+  function done () {
+    html += '</ul>'
+    if (!seen) {
+      html = '<p>there are no filters present on this project</p>'
+    }
+
+    cb(null, header + html + footer)
+  }
 }
 
 function renderError (err) {

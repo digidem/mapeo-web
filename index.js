@@ -14,17 +14,14 @@ var projectCores = {}
 
 var utils = {
   getOrCreateProject,
+  getProject,
   removeProject
 }
 
 var router = routes()
-/*
- * intro page
- * project info / control
- * geojson export /w filter
- */
 router.addRoute('GET /', require('./routes/main'))
-router.addRoute('GET /project/:project_id', require('./routes/project').overview)
+router.addRoute('GET /project/:project_id', require('./routes/project_overview'))
+router.addRoute('GET /project/:project_id/filters/:filter_id/export.geojson', require('./routes/project_export'))
 
 http.createServer(function (req, res) {
   var parsed = url.parse(req.url)
@@ -51,6 +48,19 @@ function getOrCreateProject (pid) {
     projectCores[pid] = new Mapeo(osm, media)
   }
   return projectCores[pid]
+}
+
+function getProject (pid) {
+  if (projectCores[pid]) return projectCores[pid]
+
+  try {
+    fs.statSync(path.join('projects', pid))
+    var osm = Osm(path.join('projects', pid, 'db'))
+    var media = Blob(path.join('projects', pid, 'media'))
+    return projectCores[pid] = new Mapeo(osm, media)
+  } catch (e) {
+    return null
+  }
 }
 
 function removeProject (pid, cb) {

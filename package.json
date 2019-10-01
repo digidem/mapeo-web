@@ -5,10 +5,15 @@
   "license": "ISC",
   "dependencies": {
     "@mapeo/core": "^7.1.0",
+    "feature-filter": "^2.2.0",
     "mkdirp": "^0.5.1",
     "osm-p2p": "^4.0.2",
+    "osm-p2p-geojson": "^4.0.5",
+    "pump": "^3.0.0",
+    "pumpify": "^2.0.0",
     "rimraf": "^3.0.0",
     "routes": "^2.1.0",
-    "safe-fs-blob-store": "^1.0.6"
+    "safe-fs-blob-store": "^1.0.6",
+    "through2": "^3.0.1"
   }
 }

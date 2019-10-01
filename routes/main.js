@@ -2,7 +2,7 @@ module.exports = handle
 
 function handle (req, res, q, params, splats) {
   if (q.project_id) {
-    return redirect(res, '/project/' + q.project_id)
+    return redirect(res, '/project/' + q.project_id + '/')
   }
 
   var html = `

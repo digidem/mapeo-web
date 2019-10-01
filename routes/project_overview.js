@@ -3,9 +3,7 @@ var path = require('path')
 var mkdirp = require('mkdirp')
 var rimraf = require('rimraf')
 
-module.exports = {
-  overview
-}
+module.exports = overview
 
 // TODO: use nanohtml for html escaping of user input
 
@@ -32,6 +30,7 @@ function overview (req, res, q, params, splats, utils) {
     check()
   }
 
+  // see if project exists locally
   function check () {
     fs.stat(path.join('projects', pid), function (err, stats) {
       if (err && err.code === 'ENOENT') {
@@ -77,8 +76,10 @@ function renderProject (core, cb) {
       .on('data', function (entry) {
         ++pending
         core.osm.getByVersion(entry.version, function (err, filter) {
-          html += `<li>${filter.name}</li>`
-          ++seen
+          if (filter) {
+            html += `<li><a href="filters/${filter.version}/export.geojson">${filter.name}</a></li>`
+            ++seen
+          }
           if (!--pending) done()
         })
       })

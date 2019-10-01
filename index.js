@@ -13,7 +13,7 @@ var Blob = require('safe-fs-blob-store')
 var projectCores = {}
 
 var utils = {
-  getOrCreateProject,
+  getOrCreateProject: loadProject,
   getProject,
   removeProject
 }
@@ -55,7 +55,7 @@ function loadProjects (cb) {
     if (err) return cb(err)
     var pending = files.length + 1
     files.forEach(function (file) {
-      var core = getOrCreateProject(file)
+      var core = loadProject(file)
       core.osm.ready(function () {
         console.log('Loaded', file)
         if (!--pending) cb()
@@ -65,31 +65,24 @@ function loadProjects (cb) {
   })
 }
 
-function getOrCreateProject (pid) {
-  if (!projectCores[pid]) {
-    mkdirp.sync(path.join('projects', pid))
-    var osm = Osm(path.join('projects', pid, 'db'))
-    var media = Blob(path.join('projects', pid, 'media'))
-    projectCores[pid] = new Mapeo(osm, media)
-  }
+// Loads a project + starts swarming
+function loadProject (pid) {
+  if (projectCores[pid]) return projectCores[pid]
+  mkdirp.sync(path.join('projects', pid))
+  var osm = Osm(path.join('projects', pid, 'db'))
+  var media = Blob(path.join('projects', pid, 'media'))
+  projectCores[pid] = new Mapeo(osm, media)
+  projectCores[pid].sync.listen()
+  projectCores[pid].sync.join()  // TODO: join /w projectId
   return projectCores[pid]
 }
 
 function getProject (pid) {
-  if (projectCores[pid]) return projectCores[pid]
-
-  try {
-    fs.statSync(path.join('projects', pid))
-    var osm = Osm(path.join('projects', pid, 'db'))
-    var media = Blob(path.join('projects', pid, 'media'))
-    return projectCores[pid] = new Mapeo(osm, media)
-  } catch (e) {
-    return null
-  }
+  return projectCores[pid]
 }
 
 function removeProject (pid, cb) {
-  var core = getOrCreateProject(pid)
+  var core = getProject(pid)
   core.close(function () {
     fs.rename(path.join('projects', pid), path.join('projects', 'dead-'+String(Math.random()).slice(2)), cb)
   })

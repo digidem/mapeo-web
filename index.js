@@ -72,8 +72,9 @@ function loadProject (pid) {
   var osm = Osm(path.join('projects', pid, 'db'))
   var media = Blob(path.join('projects', pid, 'media'))
   projectCores[pid] = new Mapeo(osm, media)
+  projectCores[pid].sync.setName('mapeo-web')  // TODO: some way for the operator to provide this
   projectCores[pid].sync.listen()
-  projectCores[pid].sync.join()  // TODO: join /w projectId
+  projectCores[pid].sync.join(pid)
   return projectCores[pid]
 }
 

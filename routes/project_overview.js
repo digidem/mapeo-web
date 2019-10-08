@@ -2,6 +2,7 @@ var fs = require('fs')
 var path = require('path')
 var mkdirp = require('mkdirp')
 var rimraf = require('rimraf')
+var crypto = require('crypto')
 
 module.exports = overview
 
@@ -39,7 +40,7 @@ function overview (req, res, q, params, splats, utils) {
         done(err)
       } else {
         var core = utils.getOrCreateProject(pid)
-        renderProject(core, done)
+        renderProject(core, pid, done)
       }
     })
   }
@@ -57,7 +58,7 @@ function overview (req, res, q, params, splats, utils) {
   }
 }
 
-function renderProject (core, cb) {
+function renderProject (core, pid, cb) {
   var footer = `
     <hr/>
     <p><font color="red">DANGER ZONE:</font></p>
@@ -66,6 +67,9 @@ function renderProject (core, cb) {
       <input type="submit" value="delete project"/>
     </form>
   `
+
+  // protected (hashed) project id
+  var ppid = crypto.createHash('sha256').update(pid, 'utf8').digest().toString('hex')
 
   var header = '<h2>GeoJSON filters</h2>'
   var html = '<ul>'
@@ -77,7 +81,7 @@ function renderProject (core, cb) {
         ++pending
         core.osm.getByVersion(entry.version, function (err, filter) {
           if (filter) {
-            html += `<li><a href="filters/${filter.version}/export.geojson">${filter.name}</a></li>`
+            html += `<li><a href="/project/${ppid}/filters/${filter.version}/export.geojson">${filter.name}</a></li>`
             ++seen
           }
           if (!--pending) done()

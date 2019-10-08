@@ -8,13 +8,18 @@ var mkdirp = require('mkdirp')
 var Mapeo = require('@mapeo/core')
 var Osm = require('osm-p2p')
 var Blob = require('safe-fs-blob-store')
+var crypto = require('crypto')
 
 // projectId => mapeo-core instance
 var projectCores = {}
 
+// Protected Project ID => mapeo-core instance (hash of the project_id)
+var ppidToCore = {}
+
 var utils = {
   getOrCreateProject: loadProject,
   getProject,
+  getProjectIdFromPpid,
   removeProject
 }
 
@@ -75,6 +80,10 @@ function loadProject (pid) {
   projectCores[pid].sync.setName('mapeo-web')  // TODO: some way for the operator to provide this
   projectCores[pid].sync.listen()
   projectCores[pid].sync.join(pid)
+  projectCores[pid]._pid = pid
+  var ppid = crypto.createHash('sha256').update(pid, 'utf8').digest().toString('hex')
+  projectCores[pid]._ppid = ppid
+  ppidToCore[ppid] = projectCores[pid]
   return projectCores[pid]
 }
 
@@ -82,10 +91,15 @@ function getProject (pid) {
   return projectCores[pid]
 }
 
+function getProjectIdFromPpid (ppid) {
+  return ppidToCore[ppid]._pid
+}
+
 function removeProject (pid, cb) {
   var core = getProject(pid)
   core.close(function () {
     fs.rename(path.join('projects', pid), path.join('projects', 'dead-'+String(Math.random()).slice(2)), cb)
+    delete projectCores[pid]
   })
 }
 

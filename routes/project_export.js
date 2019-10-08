@@ -10,8 +10,9 @@ var featureFilter = require('feature-filter')
 module.exports = geojson
 
 function geojson (req, res, q, params, splats, utils) {
-  var pid = params.project_id
+  var ppid = params.project_id
   var fid = params.filter_id
+  var pid = utils.getProjectIdFromPpid(ppid)
 
   var core = utils.getProject(pid)
   if (!core) {

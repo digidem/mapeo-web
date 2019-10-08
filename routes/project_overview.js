@@ -12,6 +12,10 @@ function overview (req, res, q, params, splats, utils) {
   var pid = params.project_id
   var html
 
+  if (!isValidProjectId(pid)) {
+    return done(new Error('bad project id'))
+  }
+
   // delete project
   if (q.delete === 'true') {
     utils.removeProject(pid, function (err) {
@@ -120,3 +124,8 @@ function renderNewProject (pid) {
     </form>
   `
 }
+
+function isValidProjectId (pid) {
+  return typeof pid === 'string' && Buffer.from(pid, 'hex').length === 32
+}
+

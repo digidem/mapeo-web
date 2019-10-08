@@ -4,10 +4,10 @@
   "description": "sync and storage service for mapeo maps",
   "license": "ISC",
   "dependencies": {
-    "@mapeo/core": "^7.1.0",
+    "@mapeo/core": "^8.0.0",
     "feature-filter": "^2.2.0",
     "mkdirp": "^0.5.1",
-    "osm-p2p": "^4.0.2",
+    "osm-p2p": "^5.0.0",
     "osm-p2p-geojson": "^4.0.5",
     "pump": "^3.0.0",
     "pumpify": "^2.0.0",

@@ -73,17 +73,21 @@ function loadProjects (cb) {
 // Loads a project + starts swarming
 function loadProject (pid) {
   if (projectCores[pid]) return projectCores[pid]
+  var ppid = sha(pid)
+
   mkdirp.sync(path.join('projects', pid))
-  var osm = Osm(path.join('projects', pid, 'db'))
+  var dbdir = path.join('projects', pid, 'db')
+  var osm = Osm({ dir: dbdir, encryptionKey: pid })
   var media = Blob(path.join('projects', pid, 'media'))
+
   projectCores[pid] = new Mapeo(osm, media)
   projectCores[pid].sync.setName('mapeo-web')  // TODO: some way for the operator to provide this
   projectCores[pid].sync.listen()
   projectCores[pid].sync.join(pid)
   projectCores[pid]._pid = pid
-  var ppid = crypto.createHash('sha256').update(pid, 'utf8').digest().toString('hex')
   projectCores[pid]._ppid = ppid
   ppidToCore[ppid] = projectCores[pid]
+
   return projectCores[pid]
 }
 
@@ -103,3 +107,6 @@ function removeProject (pid, cb) {
   })
 }
 
+function sha (text) {
+  return crypto.createHash('sha256').update(text, 'utf8').digest().toString('hex')
+}

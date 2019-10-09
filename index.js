@@ -8,7 +8,7 @@ var mkdirp = require('mkdirp')
 var Mapeo = require('@mapeo/core')
 var Osm = require('osm-p2p')
 var Blob = require('safe-fs-blob-store')
-var crypto = require('crypto')
+var crypto = require('hypercore-crypto')
 
 // projectId => mapeo-core instance
 var projectCores = {}
@@ -20,7 +20,8 @@ var utils = {
   getOrCreateProject: loadProject,
   getProject,
   getProjectIdFromPpid,
-  removeProject
+  removeProject,
+  hash
 }
 
 console.log('Loading projects..')
@@ -58,8 +59,10 @@ function startServer () {
 function loadProjects (cb) {
   fs.readdir('projects', function (err, files) {
     if (err) return cb(err)
-    var pending = files.length + 1
+    var pending = 1
     files.forEach(function (file) {
+      if (!/^[A-Fa-f0-9]{64}$/.test(file)) return
+      ++pending
       var core = loadProject(file)
       core.osm.ready(function () {
         console.log('Loaded', file)
@@ -73,7 +76,7 @@ function loadProjects (cb) {
 // Loads a project + starts swarming
 function loadProject (pid) {
   if (projectCores[pid]) return projectCores[pid]
-  var ppid = sha(pid)
+  var ppid = hash(pid)
 
   mkdirp.sync(path.join('projects', pid))
   var dbdir = path.join('projects', pid, 'db')
@@ -108,6 +111,14 @@ function removeProject (pid, cb) {
   })
 }
 
-function sha (text) {
-  return crypto.createHash('sha256').update(text, 'utf8').digest().toString('hex')
+// key is String or Buffer
+function hash (key) {
+  if (typeof key === 'string') {
+    key = Buffer.from(key, 'hex')
+  }
+  if (Buffer.isBuffer(key) && key.length === 32) {
+    return crypto.discoveryKey(key).toString('hex')
+  } else {
+    throw new Error('hash input must be a 32-byte buffer')
+  }
 }

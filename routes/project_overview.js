@@ -2,7 +2,6 @@ var fs = require('fs')
 var path = require('path')
 var mkdirp = require('mkdirp')
 var rimraf = require('rimraf')
-var crypto = require('crypto')
 
 module.exports = overview
 
@@ -44,7 +43,8 @@ function overview (req, res, q, params, splats, utils) {
         done(err)
       } else {
         var core = utils.getOrCreateProject(pid)
-        renderProject(core, pid, done)
+        var ppid = utils.hash(pid)
+        renderProject(core, ppid, done)
       }
     })
   }
@@ -62,7 +62,7 @@ function overview (req, res, q, params, splats, utils) {
   }
 }
 
-function renderProject (core, pid, cb) {
+function renderProject (core, ppid, cb) {
   var footer = `
     <hr/>
     <p><font color="red">DANGER ZONE:</font></p>
@@ -71,9 +71,6 @@ function renderProject (core, pid, cb) {
       <input type="submit" value="delete project"/>
     </form>
   `
-
-  // protected (hashed) project id
-  var ppid = crypto.createHash('sha256').update(pid, 'utf8').digest().toString('hex')
 
   var header = '<h2>GeoJSON filters</h2>'
   var html = '<ul>'

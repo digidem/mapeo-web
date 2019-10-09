@@ -101,6 +101,7 @@ function getProjectIdFromPpid (ppid) {
 
 function removeProject (pid, cb) {
   var core = getProject(pid)
+  if (!core) return process.nextTick(cb)
   core.close(function () {
     fs.rename(path.join('projects', pid), path.join('projects', 'dead-'+String(Math.random()).slice(2)), cb)
     delete projectCores[pid]

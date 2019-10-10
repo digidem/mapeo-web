@@ -82,8 +82,6 @@ function renderProject (core, ppid, cb) {
         var filter = entry.value.value
         var version = entry.value.key + '@' + entry.value.seq
         var publicVersion = entry.key
-        console.log('version', version)
-        console.log('persion', publicVersion)
         html += `<li><a href="/project/${ppid}/filters/${publicVersion}/export.geojson">${filter.name}</a></li>`
         ++pending
         ++seen

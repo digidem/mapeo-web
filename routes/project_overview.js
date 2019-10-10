@@ -77,16 +77,17 @@ function renderProject (core, ppid, cb) {
   var pending = 1
   var seen = 0
   core.osm.ready(function () {
-    core.osm.core.api.types.createReadStream('filter')
+    core.osm.core.api.filtermap.createReadStream()
       .on('data', function (entry) {
+        var filter = entry.value.value
+        var version = entry.value.key + '@' + entry.value.seq
+        var publicVersion = entry.key
+        console.log('version', version)
+        console.log('persion', publicVersion)
+        html += `<li><a href="/project/${ppid}/filters/${publicVersion}/export.geojson">${filter.name}</a></li>`
         ++pending
-        core.osm.getByVersion(entry.version, function (err, filter) {
-          if (filter) {
-            html += `<li><a href="/project/${ppid}/filters/${filter.version}/export.geojson">${filter.name}</a></li>`
-            ++seen
-          }
-          if (!--pending) done()
-        })
+        ++seen
+        if (!--pending) done()
       })
       .on('end', function () {
         if(!--pending) {

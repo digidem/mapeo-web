@@ -11,7 +11,7 @@ module.exports = geojson
 
 function geojson (req, res, q, params, splats, utils) {
   var ppid = params.project_id
-  var fid = params.filter_id
+  var pfid = params.filter_id
   var pid = utils.getProjectIdFromPpid(ppid)
 
   var core = utils.getProject(pid)
@@ -20,9 +20,10 @@ function geojson (req, res, q, params, splats, utils) {
   }
 
   core.osm.ready(function () {
-    core.osm.getByVersion(fid, function (err, filter) {
+    core.osm.core.api.filtermap.get(pfid, function (err, values) {
       if (err) return done(err)
-      if (!filter) return done(new Error('no such filter'))
+      if (!values.length) return done(new Error('no such filter found'))
+      var filter = values[0].value
       res.setHeader('Content-Type', 'application/json')
       var filterFn = featureFilter(filter.filter)
       res.write('{"type":"FeatureCollection", "features":[')

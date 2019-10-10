@@ -8,7 +8,8 @@ var mkdirp = require('mkdirp')
 var Mapeo = require('@mapeo/core')
 var Osm = require('osm-p2p')
 var Blob = require('safe-fs-blob-store')
-var crypto = require('hypercore-crypto')
+var helpers = require('./lib/utils')
+var filtermap = require('./lib/filtermap')
 
 // projectId => mapeo-core instance
 var projectCores = {}
@@ -21,7 +22,7 @@ var utils = {
   getProject,
   getProjectIdFromPpid,
   removeProject,
-  hash
+  hash: helpers.discoveryHash
 }
 
 console.log('Loading projects..')
@@ -76,7 +77,7 @@ function loadProjects (cb) {
 // Loads a project + starts swarming
 function loadProject (pid) {
   if (projectCores[pid]) return projectCores[pid]
-  var ppid = hash(pid)
+  var ppid = helpers.discoveryHash(pid)
 
   mkdirp.sync(path.join('projects', pid))
   var dbdir = path.join('projects', pid, 'db')
@@ -90,6 +91,9 @@ function loadProject (pid) {
   projectCores[pid]._pid = pid
   projectCores[pid]._ppid = ppid
   ppidToCore[ppid] = projectCores[pid]
+
+  // provides a reverse map of HASH => projectId
+  osm.core.use('filtermap', filtermap(pid))
 
   return projectCores[pid]
 }
@@ -109,16 +113,4 @@ function removeProject (pid, cb) {
     fs.rename(path.join('projects', pid), path.join('projects', 'dead-'+String(Math.random()).slice(2)), cb)
     delete projectCores[pid]
   })
-}
-
-// key is String or Buffer
-function hash (key) {
-  if (typeof key === 'string') {
-    key = Buffer.from(key, 'hex')
-  }
-  if (Buffer.isBuffer(key) && key.length === 32) {
-    return crypto.discoveryKey(key).toString('hex')
-  } else {
-    throw new Error('hash input must be a 32-byte buffer')
-  }
 }

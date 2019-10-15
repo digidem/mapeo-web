@@ -50,9 +50,9 @@ function startServer () {
       res.end('no such route')
     }
   })
-  .listen(5000, function () {
-    console.log('listening on', this.address().address, 'port', this.address().port)
-  })
+    .listen(5000, function () {
+      console.log('listening on', this.address().address, 'port', this.address().port)
+    })
 }
 
 function loadProjects (cb) {
@@ -82,7 +82,7 @@ function loadProject (pid) {
   var media = Blob(path.join('projects', pid, 'media'))
 
   projectCores[pid] = new Mapeo(osm, media)
-  projectCores[pid].sync.setName('mapeo-web')  // TODO: some way for the operator to provide this
+  projectCores[pid].sync.setName('mapeo-web') // TODO: some way for the operator to provide this
   projectCores[pid].sync.listen()
   projectCores[pid].sync.join(pid)
 
@@ -100,7 +100,7 @@ function removeProject (pid, cb) {
   var core = getProject(pid)
   if (!core) return process.nextTick(cb)
   core.close(function () {
-    fs.rename(path.join('projects', pid), path.join('projects', 'dead-'+String(Math.random()).slice(2)), cb)
+    fs.rename(path.join('projects', pid), path.join('projects', 'dead-' + String(Math.random()).slice(2)), cb)
     delete projectCores[pid]
   })
 }

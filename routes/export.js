@@ -1,11 +1,6 @@
-var fs = require('fs')
-var path = require('path')
-var mkdirp = require('mkdirp')
-var rimraf = require('rimraf')
 var pump = require('pump')
 var through = require('through2')
 var featureFilter = require('feature-filter')
-var getGeojson = require('../lib/export-geojson')
 
 module.exports = geojson
 
@@ -26,7 +21,7 @@ function geojson (req, res, q, params, splats, utils) {
         var res = filterFn(feature)
         if (res) {
           var json = JSON.stringify(feature)
-          if (!first) json = ','+json
+          if (!first) json = ',' + json
           first = false
           next(null, json)
         } else {

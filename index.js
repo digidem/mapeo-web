@@ -8,20 +8,18 @@ var mkdirp = require('mkdirp')
 var Mapeo = require('@mapeo/core')
 var Osm = require('osm-p2p')
 var Blob = require('safe-fs-blob-store')
+var parallel = require('run-parallel')
 var helpers = require('./lib/utils')
 var filtermap = require('./lib/filtermap')
 
 // projectId => mapeo-core instance
 var projectCores = {}
 
-// Protected Project ID => mapeo-core instance (hash of the project_id)
-var ppidToCore = {}
-
 var utils = {
   getOrCreateProject: loadProject,
   getProject,
-  getProjectIdFromPpid,
   removeProject,
+  getProjectIdAndFilterIdFromExportId,
   hash: helpers.discoveryHash
 }
 
@@ -36,8 +34,8 @@ loadProjects(function (err) {
 function startServer () {
   var router = routes()
   router.addRoute('GET /', require('./routes/main'))
-  router.addRoute('GET /project/:project_id', require('./routes/project_overview'))
-  router.addRoute('GET /project/:project_id/filters/:filter_id/export.geojson', require('./routes/project_export'))
+  router.addRoute('GET /project/:project_id', require('./routes/project'))
+  router.addRoute('GET /export/:export_id/export.geojson', require('./routes/export'))
 
   http.createServer(function (req, res) {
     var parsed = url.parse(req.url)
@@ -77,7 +75,6 @@ function loadProjects (cb) {
 // Loads a project + starts swarming
 function loadProject (pid) {
   if (projectCores[pid]) return projectCores[pid]
-  var ppid = helpers.discoveryHash(pid)
 
   mkdirp.sync(path.join('projects', pid))
   var dbdir = path.join('projects', pid, 'db')
@@ -88,9 +85,6 @@ function loadProject (pid) {
   projectCores[pid].sync.setName('mapeo-web')  // TODO: some way for the operator to provide this
   projectCores[pid].sync.listen()
   projectCores[pid].sync.join(pid)
-  projectCores[pid]._pid = pid
-  projectCores[pid]._ppid = ppid
-  ppidToCore[ppid] = projectCores[pid]
 
   // provides a reverse map of HASH => projectId
   osm.core.use('filtermap', filtermap(pid))
@@ -102,15 +96,36 @@ function getProject (pid) {
   return projectCores[pid]
 }
 
-function getProjectIdFromPpid (ppid) {
-  return ppidToCore[ppid]._pid
-}
-
 function removeProject (pid, cb) {
   var core = getProject(pid)
   if (!core) return process.nextTick(cb)
   core.close(function () {
     fs.rename(path.join('projects', pid), path.join('projects', 'dead-'+String(Math.random()).slice(2)), cb)
     delete projectCores[pid]
+  })
+}
+
+// Q: how to avoid needing to scan every core?
+function getProjectIdAndFilterIdFromExportId (exportId, cb) {
+  var tasks = Object.values(projectCores)
+    .map(function (core) {
+      return function (cb) {
+        core.osm.ready(function () {
+          core.osm.core.api.filtermap.get(exportId, function (err, values) {
+            if (err && err.notFound) err = null
+            if (err) return cb(err)
+            if (!values || !values.length) return cb()
+            var filter = values[0].value
+            cb(null, [core, filter])
+          })
+        })
+      }
+    })
+
+  parallel(tasks, function (err, results) {
+    if (err) return cb(err)
+    var result = results.filter(function (result) { return !!result })[0]
+    if (!result) return cb(new Error('no such export found'))
+    cb(null, result[0], result[1])
   })
 }

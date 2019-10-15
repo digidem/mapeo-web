@@ -76,7 +76,7 @@ function renderProject (core, cb) {
       .on('data', function (entry) {
         var filter = entry.value.value
         var exportId = entry.key
-        html += `<li><a href="/export/${exportId}/export.geojson">${filter.name}</a></li>`
+        html += `<li><a href="/export/${exportId}.geojson">${filter.name}</a></li>`
         ++pending
         ++seen
         if (!--pending) done()

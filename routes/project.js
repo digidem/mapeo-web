@@ -43,8 +43,7 @@ function overview (req, res, q, params, splats, utils) {
         done(err)
       } else {
         var core = utils.getOrCreateProject(pid)
-        var ppid = utils.hash(pid)
-        renderProject(core, ppid, done)
+        renderProject(core, done)
       }
     })
   }
@@ -62,7 +61,7 @@ function overview (req, res, q, params, splats, utils) {
   }
 }
 
-function renderProject (core, ppid, cb) {
+function renderProject (core, cb) {
   var footer = `
     <hr/>
     <p><font color="red">DANGER ZONE:</font></p>
@@ -81,8 +80,8 @@ function renderProject (core, ppid, cb) {
       .on('data', function (entry) {
         var filter = entry.value.value
         var version = entry.value.key + '@' + entry.value.seq
-        var publicVersion = entry.key
-        html += `<li><a href="/project/${ppid}/filters/${publicVersion}/export.geojson">${filter.name}</a></li>`
+        var exportId = entry.key
+        html += `<li><a href="/export/${exportId}/export.geojson">${filter.name}</a></li>`
         ++pending
         ++seen
         if (!--pending) done()

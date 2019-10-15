@@ -35,7 +35,7 @@ function startServer () {
   var router = routes()
   router.addRoute('GET /', require('./routes/main'))
   router.addRoute('GET /project/:project_id', require('./routes/project'))
-  router.addRoute('GET /export/:export_id/export.geojson', require('./routes/export'))
+  router.addRoute('GET /export/:export_id.geojson', require('./routes/export'))
 
   http.createServer(function (req, res) {
     var parsed = url.parse(req.url)

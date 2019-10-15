@@ -4,8 +4,6 @@ var mkdirp = require('mkdirp')
 
 module.exports = overview
 
-// TODO: use nanohtml for html escaping of user input
-
 function overview (req, res, q, params, splats, utils) {
   var pid = params.project_id
 

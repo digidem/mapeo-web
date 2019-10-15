@@ -1,7 +1,6 @@
 var fs = require('fs')
 var path = require('path')
 var mkdirp = require('mkdirp')
-var rimraf = require('rimraf')
 
 module.exports = overview
 
@@ -9,7 +8,6 @@ module.exports = overview
 
 function overview (req, res, q, params, splats, utils) {
   var pid = params.project_id
-  var html
 
   if (!isValidProjectId(pid)) {
     return done(new Error('bad project id'))
@@ -79,7 +77,6 @@ function renderProject (core, cb) {
     core.osm.core.api.filtermap.createReadStream()
       .on('data', function (entry) {
         var filter = entry.value.value
-        var version = entry.value.key + '@' + entry.value.seq
         var exportId = entry.key
         html += `<li><a href="/export/${exportId}/export.geojson">${filter.name}</a></li>`
         ++pending
@@ -87,7 +84,7 @@ function renderProject (core, cb) {
         if (!--pending) done()
       })
       .on('end', function () {
-        if(!--pending) {
+        if (!--pending) {
           done()
         }
       })
@@ -123,4 +120,3 @@ function renderNewProject (pid) {
 function isValidProjectId (pid) {
   return typeof pid === 'string' && Buffer.from(pid, 'hex').length === 32
 }
-

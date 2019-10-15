@@ -26,4 +26,3 @@ function redirect (res, to) {
   })
   res.end()
 }
-

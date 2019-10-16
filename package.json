@@ -1,6 +1,6 @@
 {
   "name": "mapeo-web",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "sync and storage service for mapeo maps",
   "bin": {
     "mapeo-web": "index.js"

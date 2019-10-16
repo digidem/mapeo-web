@@ -67,7 +67,7 @@ function loadProjects (cb) {
       var core = loadProject(file)
       core.osm.ready(function () {
         var ok = '[ OK ]'
-        var padding = new Array(process.stdout.columns - file.length - ok.length).fill(' ').join('')
+        var padding = new Array(process.stdout.columns||80 - file.length - ok.length).fill(' ').join('')
         console.log(file + padding + ok)
         if (!--pending) cb()
       })

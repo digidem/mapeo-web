@@ -7,7 +7,7 @@
   },
   "license": "ISC",
   "dependencies": {
-    "@mapeo/core": "^8.0.0",
+    "@mapeo/core": "^8.0.3",
     "feature-filter": "^2.2.0",
     "hypercore-crypto": "^1.0.0",
     "kappa-view-kv": "^2.0.2",

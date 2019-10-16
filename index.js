@@ -57,6 +57,7 @@ function startServer () {
 }
 
 function loadProjects (cb) {
+  mkdirp.sync('projects')
   fs.readdir('projects', function (err, files) {
     if (err) return cb(err)
     var pending = 1

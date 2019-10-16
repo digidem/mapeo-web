@@ -24,6 +24,21 @@ mapeo-web
 
 This will output a URL of where the service is running. You can plug any Mapeo project ID into it and have it begin being hosted.
 
+## Security
+
+A *Mapeo Project ID* acts as a symmetric encryption key. This means, whoever this ID is shared with can:
+
+- locate peers of this project on the local network or internet who are online & advertising their membership
+- write new map data to the project
+- read map data from the project
+- sync with those peers (download & upload map data)
+
+So! This ID is very important. It needs to be treated as sensitive information. Any Project ID you enter into a Mapeo Web instance will give the operator of that service access to all of your data. Please be mindful of this.
+
+Mapeo Web allows project owners to generate special GeoJSON export URLs. These URLs are obfuscated so that someone who has the URL will *not* be able to figure out what the original Project ID that the filter came from was. This is a safe way to control data sharing of a subset of your map data with 3rd parties.
+
+*For those who this makes sense to, Mapeo Web uses the `blake2b` hashing algorithm to hide the original Project ID.*
+
 ## License
 
 ISC

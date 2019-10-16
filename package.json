@@ -2,6 +2,9 @@
   "name": "mapeo-web",
   "version": "0.0.0",
   "description": "sync and storage service for mapeo maps",
+  "bin": {
+    "mapeo-web": "index.js"
+  },
   "license": "ISC",
   "dependencies": {
     "@mapeo/core": "^8.0.0",

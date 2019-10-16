@@ -53,7 +53,9 @@ function startServer () {
     }
   })
     .listen(5000, function () {
-      console.log('listening on', this.address().address, 'port', this.address().port)
+      var address = this.address().address
+      if (address === '::') address = '0.0.0.0'
+      console.log(`Listening on http://${address}:${this.address().port}`)
     })
 }
 

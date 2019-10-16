@@ -25,11 +25,8 @@ var utils = {
   hash: helpers.discoveryHash
 }
 
-console.log('Loading projects..')
 loadProjects(function (err) {
   if (err) throw err
-  console.log('done!')
-  console.log('Starting server..')
   startServer()
 })
 
@@ -68,7 +65,9 @@ function loadProjects (cb) {
       ++pending
       var core = loadProject(file)
       core.osm.ready(function () {
-        console.log('Loaded', file)
+        var ok = '[ OK ]'
+        var padding = new Array(process.stdout.columns - file.length - ok.length).fill(' ').join('')
+        console.log(file + padding + ok)
         if (!--pending) cb()
       })
     })

@@ -5,7 +5,7 @@ var mkdirp = require('mkdirp')
 module.exports = overview
 
 function overview (req, res, q, params, splats, utils) {
-  var pid = params.project_id
+  var pid = utils.getProjectId(params.discovery_key)
 
   if (!isValidProjectId(pid)) {
     return done(new Error('bad project id'))
@@ -103,7 +103,7 @@ function renderError (err) {
 }
 
 function renderNewProject (pid) {
-  return ` 
+  return `
     <p>This project is not currently hosted here. Would you like to have mapeo-web start seeding this project and its data?</p>
     <p>
       <i>Warning: this will enable any internet-capable computer with knowledge of this project ID to download & upload data to this project via this service.</i>

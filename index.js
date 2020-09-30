@@ -17,6 +17,7 @@ const discoveryKeys = new Map()
 const projects = new Map()
 
 var utils = {
+  getProject,
   getProjectId,
   loadProject,
   removeProject,
@@ -32,7 +33,7 @@ function startServer () {
   var router = routes()
   router.addRoute('GET /', require('./routes/main'))
   router.addRoute('GET /project/:discovery_key', require('./routes/project'))
-  router.addRoute('GET /project/:discovery_key/sync', require('./routes/project_sync'))
+  router.addRoute('GET /project/:discovery_key/sync', require('./routes/discovery'))
 
   http.createServer(function (req, res) {
     var parsed = url.parse(req.url)
@@ -80,8 +81,10 @@ function loadProject (pid, cb) {
     var subprocess = fork(modulePath, [pid, port])
     subprocess.once('close', function () {
       if (projects.get(pid)) projects.delete(pid)
+      cb(new Error('failed'))
     })
     subprocess.on('error', function (err) {
+      console.error(err)
       if (projects.get(pid)) projects.delete(pid)
       cb(err)
     })
@@ -99,6 +102,10 @@ function loadProject (pid, cb) {
 // Loads a project + starts swarming
 function getProjectId (pid) {
   return discoveryKeys.get(pid)
+}
+
+function getProject (pid) {
+  return projects.get(pid)
 }
 
 function removeProject (pid, cb) {

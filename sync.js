@@ -4,30 +4,35 @@ var Osm = require('osm-p2p')
 var Blob = require('safe-fs-blob-store')
 var path = require('path')
 var mkdirp = require('mkdirp')
+var crypto = require('crypto')
 
-var pid = process.argv._[0]
-var port = process.argv._[1]
+var pid = process.argv[2]
+var port = process.argv[3]
 
-mkdirp.sync(path.join('projects', pid))
-var dbdir = path.join('projects', pid, 'db')
+console.log('[STARTING]', pid, port)
+mkdirp.sync(path.join(__dirname, 'projects', pid))
+var dbdir = path.join(__dirname, 'projects', pid, 'db')
 
 var osm = Osm({ dir: dbdir, encryptionKey: pid })
-var media = Blob(path.join('projects', pid, 'media'))
+var media = Blob(path.join(__dirname, 'projects', pid, 'media'))
 var mapeo = new Mapeo(osm, media)
 
 // TODO: some way for the operator to provide this
 mapeo.sync.setName('mapeo-web')
 
-mapeo.on('peer', (peer) => {
-  mapeo.syncNetwork(peer)
+mapeo.sync.on('peer', (peer) => {
+  mapeo.sync.replicateNetwork(peer)
 })
 
-var server = net.createServer((c) => {
-  mapeo.sync.onConnection(c, {
+var server = net.createServer((socket) => {
+  var id = crypto.randomBytes(32)
+  mapeo.sync.onConnection(socket, {
+    host: socket.localAddress,
+    port: socket.localPort,
+    id
   })
 })
 
 server.listen(port, () => {
-  process.send('ready')
+  process.send('message')
 })
-

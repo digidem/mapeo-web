@@ -12,7 +12,7 @@ function overview (req, res, q, params, splats, utils) {
   }
 
   utils.loadProject(pid, (err, project) => {
-    res.addHeader('Content-Type', 'application/json')
+    res.setHeader('Content-Type', 'application/json')
     if (err) return onError(err)
     return res.end(JSON.stringify({
       error: false,

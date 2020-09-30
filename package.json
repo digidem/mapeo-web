@@ -5,6 +5,10 @@
   "bin": {
     "mapeo-web": "index.js"
   },
+  "scripts": {
+    "start": "node index.js",
+    "test": "node test/sync.js"
+  },
   "license": "ISC",
   "dependencies": {
     "@mapeo/core": "^8.3.2",

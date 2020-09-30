@@ -29,11 +29,11 @@ This will output a URL of where the service is running. You can plug any Mapeo p
 Where pid is a valid Mapeo Project ID (32 random bytes)
 
 
-```
+```bash
 mkdir projects
 mkdir projects/<pid>
-npm start
-node test/sync.js <pid>
+DEBUG=* npm start
+DEBUG=* node test/sync.js <pid>
 ```
 
 

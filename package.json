@@ -11,7 +11,7 @@
   },
   "license": "ISC",
   "dependencies": {
-    "@mapeo/core": "^8.3.2",
+    "@mapeo/core": "github:digidem/mapeo-core#expose-onConnection",
     "feature-filter": "^2.2.0",
     "get-port": "^5.1.1",
     "hypercore-crypto": "^1.0.0",

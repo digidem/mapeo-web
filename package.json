@@ -5,10 +5,15 @@
   "bin": {
     "mapeo-web": "index.js"
   },
+  "scripts": {
+    "start": "node index.js",
+    "test": "node test/sync.js"
+  },
   "license": "ISC",
   "dependencies": {
-    "@mapeo/core": "^8.0.3",
+    "@mapeo/core": "github:digidem/mapeo-core#expose-onConnection",
     "feature-filter": "^2.2.0",
+    "get-port": "^5.1.1",
     "hypercore-crypto": "^1.0.0",
     "kappa-view-kv": "^2.0.2",
     "level": "^5.0.1",
@@ -22,5 +27,8 @@
     "run-parallel": "^1.1.9",
     "safe-fs-blob-store": "^1.0.6",
     "through2": "^3.0.1"
+  },
+  "devDependencies": {
+    "needle": "^2.5.2"
   }
 }

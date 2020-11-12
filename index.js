@@ -9,6 +9,8 @@ const Mapeo = require('@mapeo/core')
 const envPaths = require('env-paths')
 
 const DEFAULT_STORAGE = envPaths('mapeo-web').data
+// If a mapeo instance hasn't been accessed for a minute, we should clear it out
+const DEFULT_GC_DELAY = 60 * 1000
 
 module.exports = {
   createServer
@@ -51,12 +53,18 @@ function createServer (opts) {
 class MultiMapeo {
   constructor ({
     storageLocation = DEFAULT_STORAGE,
+    gcTimeout = DEFULT_GC_DELAY,
     id = crypto.randombytes(8).toString('hex')
   }) {
     // TODO: Add leveldb to track
     this.storageLocation = storageLocation
-    this.instances = new Map()
+    this.gcTimeout = gcTimeout
     this.id = id
+
+    // track initialized mapeo instances
+    this.instances = new Map()
+    // Track active WS connections for mapeo instances
+    this.connections = new Map()
   }
 
   get (key) {
@@ -65,7 +73,9 @@ class MultiMapeo {
     const dir = path.join(storageLocation, 'instances', key)
     mkdirp.sync(dir)
 
-    const osm = osmdb(dir)
+    const osm = osmdb(dir, {
+      encryptionKey: Buffer.from(key, 'hex')
+    })
     const media = blobstore(path.join(dir, 'media'))
 
     const mapeo = new Mapeo(osm, media, { id })
@@ -83,6 +93,15 @@ class MultiMapeo {
     return mapeo
   }
 
+  unget (key, cb) {
+    if (!this.instances.has(key)) return process.nextTick(cb)
+    // TODO: Close mapeo instance
+    this.instances.get(key).close((err) => {
+      this.instances.delete(key)
+      if (err) return cb(err)
+    })
+  }
+
   replicate (connection, req, key) {
     const mapeo = this.get(key)
 
@@ -97,9 +116,30 @@ class MultiMapeo {
       type: 'ws'
     }
 
+    // TODO: Add cleaner method for this
     mapeo.sync.state.addWebsocketPeer(connection, info)
-
     mapeo.sync.addPeer(connection, info)
+  }
+
+  trackConnection (connection, key) {
+    if (!this.connections.has(key)) {
+      this.connections.put(key, new Set())
+    }
+
+    const connections = this.connections.get(key)
+
+    connections.add(connection)
+
+    connection.once('close', () => {
+      connections.delete(connection)
+      setTimeout(() => {
+        // New connections have been made since the last time
+        if (connections.size()) return
+        this.unget(key, (e) => {
+          if (e) console.error(e)
+        })
+      }, this.gcTimeout)
+    })
   }
 
   close (cb) {

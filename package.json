@@ -15,13 +15,14 @@
     "env-paths": "^2.2.0",
     "fastify": "^3.8.0",
     "fastify-websocket": "^2.0.11",
-    "levelup": "^4.4.0",
+    "level": "^6.0.1",
     "mkdirp": "^1.0.4",
     "osm-p2p": "^5.1.0",
     "safe-fs-blob-store": "^1.0.6",
     "yargs": "^16.1.0"
   },
   "devDependencies": {
+    "cross-fetch": "^3.0.6",
     "get-port": "^5.1.1",
     "standard": "^16.0.2",
     "tape": "^5.0.1",

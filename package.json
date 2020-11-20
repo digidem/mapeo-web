@@ -7,7 +7,7 @@
     "test": "npm run lint && node test"
   },
   "bin": {
-    "mapeo-web": "index.js"
+    "mapeo-web": "bin.js"
   },
   "license": "ISC",
   "dependencies": {

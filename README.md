@@ -39,6 +39,63 @@ Mapeo Web allows project owners to generate special GeoJSON export URLs. These U
 
 *For those who this makes sense to, Mapeo Web uses the `blake2b` hashing algorithm to hide the original Project ID.*
 
+## Setting up on a Digital Ocean Droplet
+
+- Set up Node.js [with this guide](https://www.digitalocean.com/community/tutorials/how-to-set-up-a-node-js-application-for-production-on-ubuntu-20-04)
+- Set up Nginx [with this guide](https://www.digitalocean.com/community/tutorials/how-to-set-up-a-node-js-application-for-production-on-ubuntu-20-04)
+- Install mapeo-web with `npm i -g digidem/mapeo-web#ws-rewrite`
+- You can run the server with `mapeo-web start --port 62736`. 62736 is `MAPEO` on a dialpad
+- You can set up a service for it in the background with this:
+
+```
+# Paste this into an interactive bash or zsh shell, or save it as a file and run it with sh.
+
+# This will create the service file.
+sudo cat << EOF | sudo tee /etc/systemd/system/mapeo-web.service > /dev/null
+[Unit]
+Description=Mapeo Web sync server
+
+[Service]
+Type=simple
+ExecStart=$(which mapeo-web) start --port 62736
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo chmod 644 /etc/systemd/system/mapeo-web.service
+
+sudo systemctl daemon-reload
+sudo systemctl enable mapeo-web
+sudo systemctl start mapeo-web
+
+sudo systemctl status mapeo-web
+```
+
+- Add an nginx config file: `/etc/nginx/sites-enabled/cloud.mapeo.app`
+
+```
+server {
+  server_name cloud.mapeo.app;
+
+  location / {
+    proxy_pass http://localhost:62736;
+    proxy_set_header    Host            $host;
+    proxy_set_header    X-Real-IP       $remote_addr;
+    proxy_set_header    X-Forwarded-for $remote_addr;
+    port_in_redirect    off;
+    proxy_http_version  1.1;
+    proxy_set_header    Upgrade         $http_upgrade;
+    proxy_set_header    Connection      "Upgrade";
+  }
+}
+```
+
+- Restart the server with `service nginx reload`
+- Enable HTTPs with LetsEncrypt with [this guide](https://www.digitalocean.com/community/tutorials/how-to-secure-nginx-with-let-s-encrypt-on-ubuntu-20-04)
+- BAM! https://cloud.mapeo.app/
+
 ## License
 
 ISC

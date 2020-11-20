@@ -30,7 +30,7 @@ function makeMapeo (dir, encryptionKey) {
 }
 
 test('Sync between a mapeo instance and a server', (t) => {
-  t.plan(8)
+  t.plan(12)
   const mapeoDir = tmp.dirSync().name
   const serverDir = tmp.dirSync().name
 
@@ -45,14 +45,13 @@ test('Sync between a mapeo instance and a server', (t) => {
     id: serverId
   })
 
-  mapeo.sync.once('peer', verifyPeer)
-
   mapeo.osm.ready(() => {
     listen((e, port) => {
       t.error(e, 'able to listen')
       putProject(port, (e) => {
         t.error(e, 'added project')
-        writeOSM((e) => {
+        writeOSM((e, id) => {
+          mapeo.sync.once('peer', (peer) => verifyPeer(peer, id))
           t.error(e, 'initialized OSM data')
           writeMedia((e) => {
             t.error(e, 'initialized media')
@@ -63,12 +62,26 @@ test('Sync between a mapeo instance and a server', (t) => {
     })
   })
 
-  function verifyPeer (peer) {
+  function verifyPeer (peer, osmId) {
     t.pass('Got peer')
     const sync = mapeo.sync.replicate(peer)
     sync.on('end', () => {
       t.pass('Finished sync')
-      finishUp()
+      verifyData(osmId, finishUp)
+    })
+  }
+
+  function verifyData (osmId, cb) {
+    const local = mapeoWeb.get(projectKey)
+
+    local.osm.get(osmId, (e, node) => {
+      t.error(e, 'No erorr getting OSM')
+      t.ok(node, 'OSM node exists')
+      local.media.exists('foo.txt', (err, exists) => {
+        t.error(err, 'No error reading file')
+        t.ok(exists, 'File exists')
+        cb()
+      })
     })
   }
 

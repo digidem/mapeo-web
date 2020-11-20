@@ -64,6 +64,10 @@ class MapeoWeb {
     })
   }
 
+  get (key) {
+    return this.multiMapeo.get(key.toString('hex'))
+  }
+
   listen (...args) {
     this.fastify.listen(...args)
   }

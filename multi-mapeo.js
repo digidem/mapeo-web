@@ -13,6 +13,7 @@ const DEFAULT_STORAGE = envPaths('mapeo-web').data
 const DEFAULT_GC_DELAY = 60 * 1000
 const HOSTNAME = require('os').hostname()
 const DEFAULT_NAME = 'Mapeo Web ' + HOSTNAME
+const DEVICE_TYPE = 'cloud'
 
 module.exports = class MultiMapeo extends EventEmitter {
   constructor ({
@@ -46,7 +47,7 @@ module.exports = class MultiMapeo extends EventEmitter {
     })
     const media = blobstore(path.join(dir, 'media'))
 
-    const mapeo = new Mapeo(osm, media, { id })
+    const mapeo = new Mapeo(osm, media, { id, deviceType: DEVICE_TYPE })
 
     osm.close = function (cb) {
       this.index.close(cb)
@@ -62,7 +63,7 @@ module.exports = class MultiMapeo extends EventEmitter {
 
     mapeo.sync.on('peer', (peer) => {
     // TODO: Should we track / report sync progress somewhere?
-      mapeo.sync.replicate(peer)
+      mapeo.sync.replicate(peer, {deviceType: DEVICE_TYPE })
     })
 
     return mapeo

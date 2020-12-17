@@ -8,6 +8,8 @@ const Mapeo = require('@mapeo/core')
 const envPaths = require('env-paths')
 const EventEmitter = require('events')
 
+const discoveryKey = require('./discoveryKey')
+
 const DEFAULT_STORAGE = envPaths('mapeo-web').data
 // If a mapeo instance hasn't been accessed for a minute, we should clear it out
 const DEFAULT_GC_DELAY = 60 * 1000
@@ -35,15 +37,16 @@ module.exports = class MultiMapeo extends EventEmitter {
     this.connections = new Map()
   }
 
-  get (key) {
-    if (this.instances.has(key)) return this.instances.get(key)
+  get (projectKey) {
+    if (this.instances.has(projectKey)) return this.instances.get(projectKey)
+    const key = discoveryKey(projectKey)
     const { storageLocation, id } = this
     const dir = path.join(storageLocation, 'instances', key)
     mkdirp.sync(dir)
 
     const osm = osmdb({
       dir,
-      encryptionKey: Buffer.from(key, 'hex')
+      encryptionKey: Buffer.from(projectKey, 'hex')
     })
     const media = blobstore(path.join(dir, 'media'))
 
@@ -53,12 +56,12 @@ module.exports = class MultiMapeo extends EventEmitter {
       this.index.close(cb)
     }
 
-    this.instances.set(key, mapeo)
+    this.instances.set(projectKey, mapeo)
 
     mapeo.sync.setName(this.name)
 
     mapeo.sync.listen(() => {
-      mapeo.sync.join(Buffer.from(key, 'hex'))
+      mapeo.sync.join(Buffer.from(projectKey, 'hex'))
     })
 
     mapeo.sync.on('peer', (peer) => {
@@ -69,17 +72,17 @@ module.exports = class MultiMapeo extends EventEmitter {
     return mapeo
   }
 
-  unget (key, cb) {
-    if (!this.instances.has(key)) return process.nextTick(cb)
+  unget (projectKey, cb) {
+    if (!this.instances.has(projectKey)) return process.nextTick(cb)
     // TODO: Close mapeo instance
-    this.instances.get(key).close((err) => {
-      this.instances.delete(key)
+    this.instances.get(projectKey).close((err) => {
+      this.instances.delete(projectKey)
       if (err) return cb(err)
     })
   }
 
-  replicate (connection, req, key) {
-    const mapeo = this.get(key)
+  replicate (connection, req, projectKey) {
+    const mapeo = this.get(projectKey)
 
     // This is really gross but I don't think there are any good alternatives
     const {
@@ -99,12 +102,12 @@ module.exports = class MultiMapeo extends EventEmitter {
     mapeo.sync.addPeer(connection, info)
   }
 
-  trackConnection (connection, key) {
-    if (!this.connections.has(key)) {
-      this.connections.put(key, new Set())
+  trackConnection (connection, projectKey) {
+    if (!this.connections.has(projectKey)) {
+      this.connections.put(projectKey, new Set())
     }
 
-    const connections = this.connections.get(key)
+    const connections = this.connections.get(projectKey)
 
     connections.add(connection)
 
@@ -113,7 +116,7 @@ module.exports = class MultiMapeo extends EventEmitter {
       setTimeout(() => {
         // New connections have been made since the last time
         if (connections.size()) return
-        this.unget(key, (e) => {
+        this.unget(projectKey, (e) => {
           if (e) console.error(e)
         })
       }, this.gcTimeout)
@@ -121,7 +124,7 @@ module.exports = class MultiMapeo extends EventEmitter {
   }
 
   close (cb) {
-    const total = [...this.instances].length
+    const total = this.instances.size
     let count = 0
     let lastError = null
     for (const mapeo of this.instances.values()) {

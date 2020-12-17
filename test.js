@@ -31,7 +31,7 @@ function makeMapeo (dir, encryptionKey) {
 }
 
 test('Sync between a mapeo instance and a server', (t) => {
-  t.plan(12)
+  t.plan(13)
   const mapeoDir = tmp.dirSync().name
   const serverDir = tmp.dirSync().name
 
@@ -122,8 +122,10 @@ test('Sync between a mapeo instance and a server', (t) => {
       body: JSON.stringify({
         projectKey: keyString
       })
-    }).then((res) => {
+    }).then(async (res) => {
       t.ok(res.ok, 'Able to put key into mapeo-web')
+      const { id } = await res.json()
+      t.ok(id, 'Got discoveryKey from add')
       cb(null)
     }).catch(cb)
   }

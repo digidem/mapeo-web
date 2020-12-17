@@ -59,7 +59,7 @@ class MapeoWeb {
         }
         this.permissions.removeProjectKey(projectKey, (err) => {
           if (err) return reply.send(err)
-          else reply.send({ added: true })
+          else reply.send({ deleted: true })
         })
       })
     })

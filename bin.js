@@ -38,9 +38,16 @@ require('yargs')
 
     const { port } = argv
 
-    mapeoWeb.listen(port, () => {
-      console.log('Starting service', mapeoWeb.address())
-    })
+    process.on('SIGINT', shutdown)
+    process.on('SIGTERM', shutdown)
+
+    function shutdown () {
+      mapeoWeb.close(() => {
+        process.exit(0)
+      })
+    }
+
+    mapeoWeb.listen(port)
   })
   .command('add <projectKey> <url>', 'Add a project to a mapeo-web server', (yargs) => {
     yargs.positional('projectKey', {

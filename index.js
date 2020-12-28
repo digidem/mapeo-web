@@ -1,8 +1,13 @@
 const makeFastify = require('fastify')
+const pino = require('pino')
 
 const Permissions = require('./permissions')
 const MultiMapeo = require('./multi-mapeo')
 const discoveryKey = require('./discoveryKey')
+
+const PINO_OPTS = {
+  name: 'mapeo-web'
+}
 
 module.exports = {
   create
@@ -17,11 +22,12 @@ function create (opts) {
 }
 
 class MapeoWeb {
-  constructor (opts) {
-    const permissions = new Permissions(opts)
-    const multiMapeo = new MultiMapeo(opts)
-    const fastify = makeFastify()
+  constructor ({ logger = pino(PINO_OPTS), ...opts } = {}) {
+    const permissions = new Permissions({ ...opts, logger })
+    const multiMapeo = new MultiMapeo({ ...opts, logger })
+    const fastify = makeFastify({ logger })
 
+    this.logger = logger
     this.permissions = permissions
     this.multiMapeo = multiMapeo
     this.fastify = fastify

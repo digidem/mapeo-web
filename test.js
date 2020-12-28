@@ -7,6 +7,7 @@ const getPort = require('get-port')
 const osmdb = require('osm-p2p')
 const blobstore = require('safe-fs-blob-store')
 const Client = require('./client')
+const pino = require('pino')
 
 const MapeoWeb = require('./')
 
@@ -42,6 +43,9 @@ test('Sync between a mapeo instance and a server', (t) => {
   const mapeo = makeMapeo(mapeoDir, projectKey)
 
   const mapeoWeb = MapeoWeb.create({
+    // Comment this line out to get logs
+    logger: pino({ level: 'silent' }),
+    // logger: pino(),
     storageLocation: serverDir,
     id: serverId
   })

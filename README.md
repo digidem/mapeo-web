@@ -104,6 +104,62 @@ server {
 - BAM! https://cloud.mapeo.app/
 - If you have trouble, check the logs in `journalctl` and try restarting services
 
+### Put protected routes behind basic auth
+
+It can be important to prevent servers exposed to the internet from being abused.
+
+An easy way to do that is to put the protected APIs behind basic authentication.
+
+In this case, we might want to use NGINX's basic auth so we don't have to implement it ourselves.
+
+Based on [this guide](https://docs.nginx.com/nginx/admin-guide/security-controls/configuring-http-basic-authentication/)
+
+```
+apt-get install apache2-utils
+
+# Add user 'digidem', will prompt for password
+# Omit `-c` flag when adding additional users
+sudo htpasswd -c /etc/nginx/.htpasswd digidem
+```
+
+Then you'll want to modify the originally config to look like
+
+```
+server {
+  server_name cloud.mapeo.app;
+  proxy_read_timeout 300;
+  proxy_connect_timeout 300;
+  proxy_send_timeout 300;
+
+  auth_basic "Project Setup";
+  auth_basic_user_file /etc/nginx/.htpasswd;
+
+  location / {
+    proxy_pass http://localhost:62736;
+    proxy_set_header    Host            $host;
+    proxy_set_header    X-Real-IP       $remote_addr;
+    proxy_set_header    X-Forwarded-for $remote_addr;
+    port_in_redirect    off;
+    proxy_http_version  1.1;
+    proxy_set_header    Upgrade         $http_upgrade;
+    proxy_set_header    Connection      "Upgrade";
+  }
+
+  location /replicate/ {
+    proxy_pass http://localhost:62736;
+    proxy_set_header    Host            $host;
+    proxy_set_header    X-Real-IP       $remote_addr;
+    proxy_set_header    X-Forwarded-for $remote_addr;
+    port_in_redirect    off;
+    proxy_http_version  1.1;
+    proxy_set_header    Upgrade         $http_upgrade;
+    proxy_set_header    Connection      "Upgrade";
+
+    auth_basic off;
+  }
+}
+```
+
 ## License
 
 ISC

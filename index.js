@@ -57,7 +57,7 @@ class MapeoWeb {
 
     this.fastify.delete('/projects/:discoveryKey', (req, reply) => {
       const { discoveryKey } = req.params
-      this.getProjectKeyForDiscoveryKey(discoveryKey, (err, projectKey) => {
+      this.permissions.getProjectKeyForDiscoveryKey(discoveryKey, (err, projectKey) => {
         if (err) {
           reply.status(404)
           reply.send(err)
@@ -72,8 +72,12 @@ class MapeoWeb {
 
     this.fastify.get('/projects/', (req, reply) => {
       this.permissions.getProjectKeys((err, keys) => {
-        if (err) return reply.send(err)
-        else reply.send(keys)
+        if (err) {
+          return reply.send(err)
+        } else {
+          const data = keys.map((projectKey) => ({ projectKey }))
+          reply.send(data)
+        }
       })
     })
   }

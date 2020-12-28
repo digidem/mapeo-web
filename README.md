@@ -24,6 +24,14 @@ mapeo-web
 
 This will output a URL of where the service is running. You can plug any Mapeo project ID into it and have it begin being hosted.
 
+You can also add/remove projects from a remote mapeo-web server.
+
+```
+mapeo-web add <projectKey> <url>
+mapeo-web remove <projectKey> <url>
+mapeo-web list <url>
+```
+
 ## Security
 
 A *Mapeo Project ID* acts as a symmetric encryption key. This means, whoever this ID is shared with can:

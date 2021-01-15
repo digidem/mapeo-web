@@ -37,7 +37,7 @@ class MapeoWeb {
     this.fastify.register(require('fastify-websocket'))
 
     // Leaving room for other major minor and patch versions.
-    this.fastify.get('/replicate/v1/:discoveryKey', { websocket: true }, async (connection, req, params) => {
+    this.fastify.get('/replicate/v1/:discoveryKey', { websocket: true }, (connection, req, params) => {
       const { discoveryKey } = params
 
       this.permissions.getProjectKeyForDiscoveryKey(discoveryKey, (err, projectKey) => {
@@ -81,7 +81,7 @@ class MapeoWeb {
         if (err) {
           return reply.send(err)
         } else {
-          const data = keys.map((projectKey) => ({ projectKey }))
+          const data = keys.map((projectKey) => ({ discoveryKey: discoveryKey(projectKey) }))
           reply.send(data)
         }
       })

@@ -8,6 +8,7 @@ const osmdb = require('osm-p2p')
 const blobstore = require('safe-fs-blob-store')
 const Client = require('./client')
 const pino = require('pino')
+const discoveryKey = require('./discoveryKey')
 
 const MapeoWeb = require('./')
 
@@ -83,7 +84,7 @@ test('Sync between a mapeo instance and a server', (t) => {
     const url = `http://localhost:${port}`
 
     Client.list({ url }).then(async (keys) => {
-      t.deepEqual(keys, [{ projectKey: keyString }], 'Project in list on server')
+      t.deepEqual(keys, [{ discoveryKey: discoveryKey(keyString) }], 'Project in list on server')
 
       await Client.remove({ url, projectKey })
 

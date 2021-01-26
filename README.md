@@ -24,6 +24,14 @@ mapeo-web
 
 This will output a URL of where the service is running. You can plug any Mapeo project ID into it and have it begin being hosted.
 
+You can also add/remove projects from a remote mapeo-web server.
+
+```
+mapeo-web add <projectKey> <url>
+mapeo-web remove <projectKey> <url>
+mapeo-web list <url>
+```
+
 ## Security
 
 A *Mapeo Project ID* acts as a symmetric encryption key. This means, whoever this ID is shared with can:
@@ -38,6 +46,127 @@ So! This ID is very important. It needs to be treated as sensitive information. 
 Mapeo Web allows project owners to generate special GeoJSON export URLs. These URLs are obfuscated so that someone who has the URL will *not* be able to figure out what the original Project ID that the filter came from was. This is a safe way to control data sharing of a subset of your map data with 3rd parties.
 
 *For those who this makes sense to, Mapeo Web uses the `blake2b` hashing algorithm to hide the original Project ID.*
+
+## Setting up on a Digital Ocean Droplet
+
+- Set up Node.js [with this guide](https://www.digitalocean.com/community/tutorials/how-to-set-up-a-node-js-application-for-production-on-ubuntu-20-04)
+- Set up Nginx [with this guide](https://www.digitalocean.com/community/tutorials/how-to-set-up-a-node-js-application-for-production-on-ubuntu-20-04)
+- Install mapeo-web with `npm i -g digidem/mapeo-web#ws-rewrite`
+- You can run the server with `mapeo-web start --port 62736`. 62736 is `MAPEO` on a dialpad
+- Create a user for mapeo-web with `useradd mapeo-web`
+- Set up the home dir with `mkhomedir_helper mapeo-web`
+- You can set up a service for it in the background with this:
+
+```
+# Paste this into an interactive bash or zsh shell, or save it as a file and run it with sh.
+
+# This will create the service file.
+sudo cat << EOF | sudo tee /etc/systemd/system/mapeo-web.service > /dev/null
+[Unit]
+Description=Mapeo Web sync server
+
+[Service]
+Type=simple
+ExecStart=$(which mapeo-web) start --port 62736
+Restart=always
+User=mapeo-web
+Group=mapeo-web
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo chmod 644 /etc/systemd/system/mapeo-web.service
+
+sudo systemctl daemon-reload
+sudo systemctl enable mapeo-web
+sudo systemctl start mapeo-web
+
+sudo systemctl status mapeo-web
+```
+
+- Add an nginx config file: `/etc/nginx/sites-enabled/cloud.mapeo.app`
+
+```
+server {
+  server_name cloud.mapeo.app;
+  proxy_read_timeout 300;
+  proxy_connect_timeout 300;
+  proxy_send_timeout 300;
+
+  location / {
+    proxy_pass http://localhost:62736;
+    proxy_set_header    Host            $host;
+    proxy_set_header    X-Real-IP       $remote_addr;
+    proxy_set_header    X-Forwarded-for $remote_addr;
+    port_in_redirect    off;
+    proxy_http_version  1.1;
+    proxy_set_header    Upgrade         $http_upgrade;
+    proxy_set_header    Connection      "Upgrade";
+  }
+}
+```
+
+- Restart the server with `service nginx reload`
+- Enable HTTPs with LetsEncrypt with [this guide](https://www.digitalocean.com/community/tutorials/how-to-secure-nginx-with-let-s-encrypt-on-ubuntu-20-04)
+- BAM! https://cloud.mapeo.app/
+- If you have trouble, check the logs in `journalctl` and try restarting services
+
+### Put protected routes behind basic auth
+
+It can be important to prevent servers exposed to the internet from being abused.
+
+An easy way to do that is to put the protected APIs behind basic authentication.
+
+In this case, we might want to use NGINX's basic auth so we don't have to implement it ourselves.
+
+Based on [this guide](https://docs.nginx.com/nginx/admin-guide/security-controls/configuring-http-basic-authentication/)
+
+```
+apt-get install apache2-utils
+
+# Add user 'digidem', will prompt for password
+# Omit `-c` flag when adding additional users
+sudo htpasswd -c /etc/nginx/.htpasswd digidem
+```
+
+Then you'll want to modify the originally config to look like
+
+```
+server {
+  server_name cloud.mapeo.app;
+  proxy_read_timeout 300;
+  proxy_connect_timeout 300;
+  proxy_send_timeout 300;
+
+  auth_basic "Project Setup";
+  auth_basic_user_file /etc/nginx/.htpasswd;
+
+  location / {
+    proxy_pass http://localhost:62736;
+    proxy_set_header    Host            $host;
+    proxy_set_header    X-Real-IP       $remote_addr;
+    proxy_set_header    X-Forwarded-for $remote_addr;
+    port_in_redirect    off;
+    proxy_http_version  1.1;
+    proxy_set_header    Upgrade         $http_upgrade;
+    proxy_set_header    Connection      "Upgrade";
+  }
+
+  location /replicate/ {
+    proxy_pass http://localhost:62736;
+    proxy_set_header    Host            $host;
+    proxy_set_header    X-Real-IP       $remote_addr;
+    proxy_set_header    X-Forwarded-for $remote_addr;
+    port_in_redirect    off;
+    proxy_http_version  1.1;
+    proxy_set_header    Upgrade         $http_upgrade;
+    proxy_set_header    Connection      "Upgrade";
+
+    auth_basic off;
+  }
+}
+```
 
 ## License
 

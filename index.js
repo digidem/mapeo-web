@@ -1,135 +1,123 @@
-#!/usr/bin/env node
+const makeFastify = require('fastify')
+const pino = require('pino')
 
-var fs = require('fs')
-var http = require('http')
-var url = require('url')
-var querystring = require('querystring')
-var routes = require('routes')
-var path = require('path')
-var mkdirp = require('mkdirp')
-var Mapeo = require('@mapeo/core')
-var Osm = require('osm-p2p')
-var Blob = require('safe-fs-blob-store')
-var parallel = require('run-parallel')
-var helpers = require('./lib/utils')
-var filtermap = require('./lib/filtermap')
+const Permissions = require('./permissions')
+const MultiMapeo = require('./multi-mapeo')
+const discoveryKey = require('./discoveryKey')
 
-// projectId => mapeo-core instance
-var projectCores = {}
-
-var utils = {
-  getOrCreateProject: loadProject,
-  getProject,
-  removeProject,
-  getProjectIdAndFilterIdFromExportId,
-  hash: helpers.discoveryHash
+const PINO_OPTS = {
+  name: 'mapeo-web'
 }
 
-loadProjects(function (err) {
-  if (err) throw err
-  startServer()
-})
-
-function startServer () {
-  var router = routes()
-  router.addRoute('GET /', require('./routes/main'))
-  router.addRoute('GET /project/:project_id', require('./routes/project'))
-  router.addRoute('GET /export/:export_id.geojson', require('./routes/export'))
-
-  http.createServer(function (req, res) {
-    var parsed = url.parse(req.url)
-    var q = querystring.parse(parsed.query)
-    var str = req.method + ' ' + parsed.pathname
-    var m = router.match(str)
-    console.log(str)
-    if (m) {
-      m.fn.apply(null, [req, res, q, m.params, m.splats, utils])
-    } else {
-      res.statusCode = 404
-      res.end('no such route')
-    }
-  })
-    .listen(5000, function () {
-      var address = this.address().address
-      if (address === '::') address = '0.0.0.0'
-      console.log(`Listening on http://${address}:${this.address().port}`)
-    })
+module.exports = {
+  create
 }
 
-function loadProjects (cb) {
-  mkdirp.sync('projects')
-  fs.readdir('projects', function (err, files) {
-    if (err) return cb(err)
-    var pending = 1
-    files.forEach(function (file) {
-      if (!/^[A-Fa-f0-9]{64}$/.test(file)) return
-      ++pending
-      var core = loadProject(file)
-      core.osm.ready(function () {
-        var ok = '[ OK ]'
-        var padding = new Array(process.stdout.columns||80 - file.length - ok.length).fill(' ').join('')
-        console.log(file + padding + ok)
-        if (!--pending) cb()
+function create (opts) {
+  const mapeoWeb = new MapeoWeb(opts)
+
+  mapeoWeb.initRoutes()
+
+  return mapeoWeb
+}
+
+class MapeoWeb {
+  constructor ({ logger = pino(PINO_OPTS), ...opts } = {}) {
+    const permissions = new Permissions({ ...opts, logger })
+    const multiMapeo = new MultiMapeo({ ...opts, logger })
+    const fastify = makeFastify({ logger })
+
+    this.logger = logger
+    this.permissions = permissions
+    this.multiMapeo = multiMapeo
+    this.fastify = fastify
+  }
+
+  initRoutes () {
+    this.fastify.register(require('fastify-websocket'))
+
+    // Leaving room for other major minor and patch versions.
+    this.fastify.get('/replicate/v1/:discoveryKey', { websocket: true }, (connection, req, params) => {
+      const { discoveryKey } = params
+
+      this.permissions.getProjectKeyForDiscoveryKey(discoveryKey, (err, projectKey) => {
+        if (err || !projectKey) {
+          this.logger.error({ discoveryKey }, 'Invalid project key')
+          return connection.end('Invalid Key')
+        }
+        this.multiMapeo.replicate(connection, req, projectKey)
       })
     })
-    if (!--pending) cb()
-  })
-}
 
-// Loads a project + starts swarming
-function loadProject (pid) {
-  if (projectCores[pid]) return projectCores[pid]
-
-  mkdirp.sync(path.join('projects', pid))
-  var dbdir = path.join('projects', pid, 'db')
-  var osm = Osm({ dir: dbdir, encryptionKey: pid })
-  var media = Blob(path.join('projects', pid, 'media'))
-
-  projectCores[pid] = new Mapeo(osm, media, { internetDiscovery: true })
-  projectCores[pid].sync.setName('mapeo-web') // TODO: some way for the operator to provide this
-  projectCores[pid].sync.listen()
-  projectCores[pid].sync.join(pid)
-
-  // provides a reverse map of HASH => projectId
-  osm.core.use('filtermap', filtermap(pid))
-
-  return projectCores[pid]
-}
-
-function getProject (pid) {
-  return projectCores[pid]
-}
-
-function removeProject (pid, cb) {
-  var core = getProject(pid)
-  if (!core) return process.nextTick(cb)
-  core.close(function () {
-    fs.rename(path.join('projects', pid), path.join('projects', 'dead-' + String(Math.random()).slice(2)), cb)
-    delete projectCores[pid]
-  })
-}
-
-// Q: how to avoid needing to scan every core?
-function getProjectIdAndFilterIdFromExportId (exportId, cb) {
-  var tasks = Object.values(projectCores)
-    .map(function (core) {
-      return function (cb) {
-        core.osm.ready(function () {
-          core.osm.core.api.filtermap.get(exportId, function (err, values) {
-            if (err && err.notFound) err = null
-            if (err) return cb(err)
-            if (!values || !values.length) return cb()
-            var filter = values[0].value
-            cb(null, [core, filter])
-          })
+    this.fastify.post('/projects/', {
+      schema: {
+        body: {
+          type: 'object',
+          properties: {
+            projectKey: {
+              type: 'string',
+              minLength: 64,
+              maxLength: 64
+            }
+          }
+        }
+      },
+      handler: (req, reply) => {
+        const { projectKey } = req.body
+        this.permissions.addProjectKey(projectKey, (err) => {
+          if (err) return reply.send(err)
+          else {
+            reply.send({
+              added: true,
+              id: discoveryKey(projectKey)
+            })
+          }
         })
       }
     })
 
-  parallel(tasks, function (err, results) {
-    if (err) return cb(err)
-    var result = results.filter(function (result) { return !!result })[0]
-    if (!result) return cb(new Error('no such export found'))
-    cb(null, result[0], result[1])
-  })
+    this.fastify.delete('/projects/:discoveryKey', (req, reply) => {
+      const { discoveryKey } = req.params
+      this.permissions.getProjectKeyForDiscoveryKey(discoveryKey, (err, projectKey) => {
+        if (err) {
+          reply.status(404)
+          reply.send(err)
+          return
+        }
+        this.permissions.removeProjectKey(projectKey, (err) => {
+          if (err) return reply.send(err)
+          else reply.send({ deleted: true })
+        })
+      })
+    })
+
+    this.fastify.get('/projects/', (req, reply) => {
+      this.permissions.getProjectKeys((err, keys) => {
+        if (err) {
+          return reply.send(err)
+        } else {
+          const data = keys.map((projectKey) => ({ discoveryKey: discoveryKey(projectKey) }))
+          reply.send(data)
+        }
+      })
+    })
+  }
+
+  get (key) {
+    return this.multiMapeo.get(key.toString('hex'))
+  }
+
+  listen (...args) {
+    this.fastify.listen(...args)
+  }
+
+  address () {
+    return this.fastify.server.address()
+  }
+
+  close (cb) {
+    this.fastify.close(() => {
+      this.multiMapeo.close(cb)
+    })
+  }
 }

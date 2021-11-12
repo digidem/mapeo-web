@@ -11,8 +11,10 @@ const MapeoWeb = require('./')
 
 tmp.setGracefulCleanup()
 
-function makeMapeo (dir) {
-  const osm = osmdb(dir)
+function makeMapeo (dir, encryptionKey) {
+  const osm = osmdb(dir, {
+    encryptionKey
+  })
   const media = blobstore(path.join(dir, 'media'))
 
   const mapeo = new Mapeo(osm, media, {
@@ -35,7 +37,7 @@ test('Sync between a mapeo instance and a server', (t) => {
 
   const serverId = crypto.randomBytes(8).toString('hex')
 
-  const mapeo = makeMapeo(mapeoDir)
+  const mapeo = makeMapeo(mapeoDir, projectKey)
 
   const mapeoWeb = MapeoWeb.createServer({
     storageLocation: serverDir,

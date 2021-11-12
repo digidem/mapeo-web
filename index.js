@@ -1,135 +1,117 @@
 #!/usr/bin/env node
+const path = require('path')
+const crypto = require('crypto')
+const mkdirp = require('mkdirp')
+const osmdb = require('osm-p2p')
+const blobstore = require('safe-fs-blob-store')
+const makeFastify = require('fastify')
+const Mapeo = require('@mapeo/core')
+const envPaths = require('env-paths')
 
-var fs = require('fs')
-var http = require('http')
-var url = require('url')
-var querystring = require('querystring')
-var routes = require('routes')
-var path = require('path')
-var mkdirp = require('mkdirp')
-var Mapeo = require('@mapeo/core')
-var Osm = require('osm-p2p')
-var Blob = require('safe-fs-blob-store')
-var parallel = require('run-parallel')
-var helpers = require('./lib/utils')
-var filtermap = require('./lib/filtermap')
+const DEFAULT_STORAGE = envPaths('mapeo-web').data
 
-// projectId => mapeo-core instance
-var projectCores = {}
-
-var utils = {
-  getOrCreateProject: loadProject,
-  getProject,
-  removeProject,
-  getProjectIdAndFilterIdFromExportId,
-  hash: helpers.discoveryHash
+module.exports = {
+  createServer
 }
 
-loadProjects(function (err) {
-  if (err) throw err
-  startServer()
-})
+function createServer (opts) {
+  const multiMapeo = new MultiMapeo(opts)
 
-function startServer () {
-  var router = routes()
-  router.addRoute('GET /', require('./routes/main'))
-  router.addRoute('GET /project/:project_id', require('./routes/project'))
-  router.addRoute('GET /export/:export_id.geojson', require('./routes/export'))
+  const fastify = makeFastify()
 
-  http.createServer(function (req, res) {
-    var parsed = url.parse(req.url)
-    var q = querystring.parse(parsed.query)
-    var str = req.method + ' ' + parsed.pathname
-    var m = router.match(str)
-    console.log(str)
-    if (m) {
-      m.fn.apply(null, [req, res, q, m.params, m.splats, utils])
-    } else {
-      res.statusCode = 404
-      res.end('no such route')
+  fastify.register(require('fastify-websocket'))
+
+  // Leaving room for other major minor and patch versions.
+  fastify.get('/replicate/1/:minor/:patch/:key', { websocket: true }, async (connection, req, params) => {
+    const { key } = params
+    // TODO: Check whether the key is allowed
+    multiMapeo.replicate(connection, req, key)
+  })
+
+  fastify.multiMapeo = multiMapeo
+
+  function listen (...args) {
+    fastify.listen(...args)
+  }
+
+  function close (cb) {
+    fastify.close(() => {
+      multiMapeo.close(cb)
+    })
+  }
+
+  return {
+    multiMapeo,
+    fastify,
+    close,
+    listen
+  }
+}
+
+class MultiMapeo {
+  constructor ({
+    storageLocation = DEFAULT_STORAGE,
+    id = crypto.randombytes(8).toString('hex')
+  }) {
+    // TODO: Add leveldb to track
+    this.storageLocation = storageLocation
+    this.instances = new Map()
+    this.id = id
+  }
+
+  get (key) {
+    if (this.instances.has(key)) return this.instances.get(key)
+    const { storageLocation, id } = this
+    const dir = path.join(storageLocation, 'instances', key)
+    mkdirp.sync(dir)
+
+    const osm = osmdb(dir)
+    const media = blobstore(path.join(dir, 'media'))
+
+    const mapeo = new Mapeo(osm, media, { id })
+
+    osm.close = function (cb) {
+      this.index.close(cb)
     }
-  })
-    .listen(5000, function () {
-      var address = this.address().address
-      if (address === '::') address = '0.0.0.0'
-      console.log(`Listening on http://${address}:${this.address().port}`)
-    })
-}
 
-function loadProjects (cb) {
-  mkdirp.sync('projects')
-  fs.readdir('projects', function (err, files) {
-    if (err) return cb(err)
-    var pending = 1
-    files.forEach(function (file) {
-      if (!/^[A-Fa-f0-9]{64}$/.test(file)) return
-      ++pending
-      var core = loadProject(file)
-      core.osm.ready(function () {
-        var ok = '[ OK ]'
-        var padding = new Array(process.stdout.columns||80 - file.length - ok.length).fill(' ').join('')
-        console.log(file + padding + ok)
-        if (!--pending) cb()
+    this.instances.set(key, mapeo)
+
+    mapeo.sync.listen(() => {
+      mapeo.sync.join(Buffer.from(key, 'hex'))
+    })
+
+    return mapeo
+  }
+
+  replicate (connection, req, key) {
+    const mapeo = this.get(key)
+
+    // This is really gross but I don't think there are any good alternatives
+    const ip = connection.socket._socket.remoteAddress
+
+    const info = {
+      id: ip,
+      name: ip,
+      host: ip,
+      port: 80,
+      type: 'ws'
+    }
+
+    mapeo.sync.state.addWebsocketPeer(connection, info)
+
+    mapeo.sync.addPeer(connection, info)
+  }
+
+  close (cb) {
+    const total = [...this.instances].length
+    let count = 0
+    let lastError = null
+    for (const mapeo of this.instances.values()) {
+      mapeo.close((err) => {
+        count++
+        if (err) lastError = err
+        if (count === total) cb(lastError)
       })
-    })
-    if (!--pending) cb()
-  })
-}
-
-// Loads a project + starts swarming
-function loadProject (pid) {
-  if (projectCores[pid]) return projectCores[pid]
-
-  mkdirp.sync(path.join('projects', pid))
-  var dbdir = path.join('projects', pid, 'db')
-  var osm = Osm({ dir: dbdir, encryptionKey: pid })
-  var media = Blob(path.join('projects', pid, 'media'))
-
-  projectCores[pid] = new Mapeo(osm, media, { internetDiscovery: true })
-  projectCores[pid].sync.setName('mapeo-web') // TODO: some way for the operator to provide this
-  projectCores[pid].sync.listen()
-  projectCores[pid].sync.join(pid)
-
-  // provides a reverse map of HASH => projectId
-  osm.core.use('filtermap', filtermap(pid))
-
-  return projectCores[pid]
-}
-
-function getProject (pid) {
-  return projectCores[pid]
-}
-
-function removeProject (pid, cb) {
-  var core = getProject(pid)
-  if (!core) return process.nextTick(cb)
-  core.close(function () {
-    fs.rename(path.join('projects', pid), path.join('projects', 'dead-' + String(Math.random()).slice(2)), cb)
-    delete projectCores[pid]
-  })
-}
-
-// Q: how to avoid needing to scan every core?
-function getProjectIdAndFilterIdFromExportId (exportId, cb) {
-  var tasks = Object.values(projectCores)
-    .map(function (core) {
-      return function (cb) {
-        core.osm.ready(function () {
-          core.osm.core.api.filtermap.get(exportId, function (err, values) {
-            if (err && err.notFound) err = null
-            if (err) return cb(err)
-            if (!values || !values.length) return cb()
-            var filter = values[0].value
-            cb(null, [core, filter])
-          })
-        })
-      }
-    })
-
-  parallel(tasks, function (err, results) {
-    if (err) return cb(err)
-    var result = results.filter(function (result) { return !!result })[0]
-    if (!result) return cb(new Error('no such export found'))
-    cb(null, result[0], result[1])
-  })
+    }
+  }
 }

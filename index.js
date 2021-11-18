@@ -1,157 +1,80 @@
-#!/usr/bin/env node
-const path = require('path')
-const crypto = require('crypto')
-const mkdirp = require('mkdirp')
-const osmdb = require('osm-p2p')
-const blobstore = require('safe-fs-blob-store')
 const makeFastify = require('fastify')
-const Mapeo = require('@mapeo/core')
-const envPaths = require('env-paths')
 
-const DEFAULT_STORAGE = envPaths('mapeo-web').data
-// If a mapeo instance hasn't been accessed for a minute, we should clear it out
-const DEFULT_GC_DELAY = 60 * 1000
+const Permissions = require('./permissions')
+const MultiMapeo = require('./multi-mapeo')
 
 module.exports = {
-  createServer
+  create
 }
 
-function createServer (opts) {
-  const multiMapeo = new MultiMapeo(opts)
+function create (opts) {
+  const mapeoWeb = new MapeoWeb(opts)
 
-  const fastify = makeFastify()
+  mapeoWeb.initRoutes()
 
-  fastify.register(require('fastify-websocket'))
-
-  // Leaving room for other major minor and patch versions.
-  fastify.get('/replicate/1/:minor/:patch/:key', { websocket: true }, async (connection, req, params) => {
-    const { key } = params
-    // TODO: Check whether the key is allowed
-    multiMapeo.replicate(connection, req, key)
-  })
-
-  fastify.multiMapeo = multiMapeo
-
-  function listen (...args) {
-    fastify.listen(...args)
-  }
-
-  function close (cb) {
-    fastify.close(() => {
-      multiMapeo.close(cb)
-    })
-  }
-
-  return {
-    multiMapeo,
-    fastify,
-    close,
-    listen
-  }
+  return mapeoWeb
 }
 
-class MultiMapeo {
-  constructor ({
-    storageLocation = DEFAULT_STORAGE,
-    gcTimeout = DEFULT_GC_DELAY,
-    id = crypto.randombytes(8).toString('hex')
-  }) {
-    // TODO: Add leveldb to track
-    this.storageLocation = storageLocation
-    this.gcTimeout = gcTimeout
-    this.id = id
+class MapeoWeb {
+  constructor (opts) {
+    const permissions = new Permissions(opts)
+    const multiMapeo = new MultiMapeo(opts)
+    const fastify = makeFastify()
 
-    // track initialized mapeo instances
-    this.instances = new Map()
-    // Track active WS connections for mapeo instances
-    this.connections = new Map()
+    this.permissions = permissions
+    this.multiMapeo = multiMapeo
+    this.fastify = fastify
   }
 
-  get (key) {
-    if (this.instances.has(key)) return this.instances.get(key)
-    const { storageLocation, id } = this
-    const dir = path.join(storageLocation, 'instances', key)
-    mkdirp.sync(dir)
+  initRoutes () {
+    this.fastify.register(require('fastify-websocket'))
 
-    const osm = osmdb(dir, {
-      encryptionKey: Buffer.from(key, 'hex')
-    })
-    const media = blobstore(path.join(dir, 'media'))
+    // Leaving room for other major minor and patch versions.
+    this.fastify.get('/replicate/v1/:key', { websocket: true }, async (connection, req, params) => {
+      const { key } = params
 
-    const mapeo = new Mapeo(osm, media, { id })
+      this.permissions.hasProjectKey(key, (err, has) => {
+        if (err || !has) return connection.end('Invalid Key')
 
-    osm.close = function (cb) {
-      this.index.close(cb)
-    }
-
-    this.instances.set(key, mapeo)
-
-    mapeo.sync.listen(() => {
-      mapeo.sync.join(Buffer.from(key, 'hex'))
+        this.multiMapeo.replicate(connection, req, key)
+      })
     })
 
-    return mapeo
-  }
+    this.fastify.put('/permissions/project/:key', (req, reply) => {
+      const { key } = req.params
+      this.permissions.addProjectKey(key, (err) => {
+        if (err) return reply.send(err)
+        else reply.send({ added: true })
+      })
+    })
 
-  unget (key, cb) {
-    if (!this.instances.has(key)) return process.nextTick(cb)
-    // TODO: Close mapeo instance
-    this.instances.get(key).close((err) => {
-      this.instances.delete(key)
-      if (err) return cb(err)
+    this.fastify.delete('/permissions/project/:key', (req, reply) => {
+      const { key } = req.params
+      this.permissions.removeProjectKey(key, (err) => {
+        if (err) return reply.send(err)
+        else reply.send({ added: true })
+      })
+    })
+
+    this.fastify.get('/permissions/project/', (req, reply) => {
+      this.permissions.getProjectKeys((err, keys) => {
+        if (err) return reply.send(err)
+        else reply.send(keys)
+      })
     })
   }
 
-  replicate (connection, req, key) {
-    const mapeo = this.get(key)
-
-    // This is really gross but I don't think there are any good alternatives
-    const ip = connection.socket._socket.remoteAddress
-
-    const info = {
-      id: ip,
-      name: ip,
-      host: ip,
-      port: 80,
-      type: 'ws'
-    }
-
-    // TODO: Add cleaner method for this
-    mapeo.sync.state.addWebsocketPeer(connection, info)
-    mapeo.sync.addPeer(connection, info)
+  listen (...args) {
+    this.fastify.listen(...args)
   }
 
-  trackConnection (connection, key) {
-    if (!this.connections.has(key)) {
-      this.connections.put(key, new Set())
-    }
-
-    const connections = this.connections.get(key)
-
-    connections.add(connection)
-
-    connection.once('close', () => {
-      connections.delete(connection)
-      setTimeout(() => {
-        // New connections have been made since the last time
-        if (connections.size()) return
-        this.unget(key, (e) => {
-          if (e) console.error(e)
-        })
-      }, this.gcTimeout)
-    })
+  address () {
+    return this.fastify.server.address()
   }
 
   close (cb) {
-    const total = [...this.instances].length
-    let count = 0
-    let lastError = null
-    for (const mapeo of this.instances.values()) {
-      mapeo.close((err) => {
-        count++
-        if (err) lastError = err
-        if (count === total) cb(lastError)
-      })
-    }
+    this.fastify.close(() => {
+      this.multiMapeo.close(cb)
+    })
   }
 }

@@ -6,6 +6,7 @@ const crypto = require('crypto')
 const getPort = require('get-port')
 const osmdb = require('osm-p2p')
 const blobstore = require('safe-fs-blob-store')
+const fetch = require('cross-fetch')
 
 const MapeoWeb = require('./')
 
@@ -29,7 +30,7 @@ function makeMapeo (dir, encryptionKey) {
 }
 
 test('Sync between a mapeo instance and a server', (t) => {
-  t.plan(2)
+  t.plan(3)
   const mapeoDir = tmp.dirSync().name
   const serverDir = tmp.dirSync().name
 
@@ -39,7 +40,7 @@ test('Sync between a mapeo instance and a server', (t) => {
 
   const mapeo = makeMapeo(mapeoDir, projectKey)
 
-  const mapeoWeb = MapeoWeb.createServer({
+  const mapeoWeb = MapeoWeb.create({
     storageLocation: serverDir,
     id: serverId
   })
@@ -56,7 +57,15 @@ test('Sync between a mapeo instance and a server', (t) => {
     getPort().then((port) => {
       mapeoWeb.listen(port, () => {
         const url = `ws://localhost:${port}/`
-        mapeo.sync.replicateFromWebsocket(url, projectKey)
+        const keyString = projectKey.toString('hex')
+        const putURL = `http://localhost:${port}/permissions/project/${keyString}`
+
+        fetch(putURL, { method: 'put' }).then((res) => {
+          t.ok(res.ok, 'Able to put key into mapeo-web')
+          mapeo.sync.replicateFromWebsocket(url, projectKey)
+        }).catch((e) => {
+          t.error(e)
+        })
       })
     })
   })

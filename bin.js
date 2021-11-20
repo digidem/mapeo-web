@@ -4,7 +4,7 @@ const DEFAULT_STORAGE = require('env-paths')('mapeo-web').data
 // If a mapeo instance hasn't been accessed for a minute, we should clear it out
 const DEFAULT_GC_DELAY = 60 * 1000
 const HOSTNAME = require('os').hostname()
-const DEFAULT_NAME = 'Mapeo Web ' + HOSTNAME
+const DEFAULT_NAME = 'Mapeo@' + HOSTNAME
 
 require('yargs')
   .scriptName('mapeo-web')

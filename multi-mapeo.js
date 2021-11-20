@@ -59,6 +59,11 @@ module.exports = class MultiMapeo extends EventEmitter {
       mapeo.sync.join(Buffer.from(key, 'hex'))
     })
 
+    mapeo.sync.on('peer', (peer) => {
+    // TODO: Should we track / report sync progress somewhere?
+      mapeo.sync.replicate(peer)
+    })
+
     return mapeo
   }
 

@@ -45,6 +45,8 @@ Mapeo Web allows project owners to generate special GeoJSON export URLs. These U
 - Set up Nginx [with this guide](https://www.digitalocean.com/community/tutorials/how-to-set-up-a-node-js-application-for-production-on-ubuntu-20-04)
 - Install mapeo-web with `npm i -g digidem/mapeo-web#ws-rewrite`
 - You can run the server with `mapeo-web start --port 62736`. 62736 is `MAPEO` on a dialpad
+- Create a user for mapeo-web with `useradd mapeo-web`
+- Set up the home dir with `mkhomedir_helper mapeo-web`
 - You can set up a service for it in the background with this:
 
 ```
@@ -59,6 +61,8 @@ Description=Mapeo Web sync server
 Type=simple
 ExecStart=$(which mapeo-web) start --port 62736
 Restart=always
+User=mapeo-web
+Group=mapeo-web
 
 [Install]
 WantedBy=multi-user.target
@@ -95,6 +99,7 @@ server {
 - Restart the server with `service nginx reload`
 - Enable HTTPs with LetsEncrypt with [this guide](https://www.digitalocean.com/community/tutorials/how-to-secure-nginx-with-let-s-encrypt-on-ubuntu-20-04)
 - BAM! https://cloud.mapeo.app/
+- If you have trouble, check the logs in `journalctl` and try restarting services
 
 ## License
 

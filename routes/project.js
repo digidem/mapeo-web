@@ -5,7 +5,7 @@ var mkdirp = require('mkdirp')
 module.exports = overview
 
 function overview (req, res, q, params, splats, utils) {
-  var pid = params.project_id
+  var pid = utils.getProjectId(params.discovery_key)
 
   if (!isValidProjectId(pid)) {
     return done(new Error('bad project id'))
@@ -38,8 +38,8 @@ function overview (req, res, q, params, splats, utils) {
       } else if (err) {
         done(err)
       } else {
-        var core = utils.getOrCreateProject(pid)
-        renderProject(core, done)
+        var project = utils.getProject(pid)
+        renderProject(project, done)
       }
     })
   }
@@ -57,15 +57,16 @@ function overview (req, res, q, params, splats, utils) {
   }
 }
 
-function renderProject (core, cb) {
-  var footer = `
+function renderProject (project, cb) {
+  cb(`
     <hr/>
     <p><font color="red">DANGER ZONE:</font></p>
     <form>
       <input type="hidden" name="delete" value="true"/>
       <input type="submit" value="delete project"/>
     </form>
-  `
+  `)
+  /*
 
   var header = '<h2>GeoJSON filters</h2>'
   var html = '<ul>'
@@ -96,6 +97,7 @@ function renderProject (core, cb) {
 
     cb(null, header + html + footer)
   }
+  */
 }
 
 function renderError (err) {
@@ -103,7 +105,7 @@ function renderError (err) {
 }
 
 function renderNewProject (pid) {
-  return ` 
+  return `
     <p>This project is not currently hosted here. Would you like to have mapeo-web start seeding this project and its data?</p>
     <p>
       <i>Warning: this will enable any internet-capable computer with knowledge of this project ID to download & upload data to this project via this service.</i>

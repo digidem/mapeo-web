@@ -95,7 +95,7 @@ test('Sync between a mapeo instance and a server', (t) => {
 
   function replicate (port) {
     const url = `ws://localhost:${port}/`
-    mapeo.sync.replicateFromWebsocket(url, projectKey)
+    mapeo.sync.connectWebsocket(url, projectKey)
   }
 
   function writeMedia (cb) {

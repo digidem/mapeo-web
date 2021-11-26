@@ -34,8 +34,9 @@ class MapeoWeb {
       const { key } = params
 
       this.permissions.hasProjectKey(key, (err, has) => {
-        if (err || !has) return connection.end('Invalid Key')
-
+        if (err || !has) {
+          return connection.end('Invalid Key')
+        }
         this.multiMapeo.replicate(connection, req, key)
       })
     })

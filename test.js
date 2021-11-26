@@ -13,7 +13,8 @@ const MapeoWeb = require('./')
 tmp.setGracefulCleanup()
 
 function makeMapeo (dir, encryptionKey) {
-  const osm = osmdb(dir, {
+  const osm = osmdb({
+    dir,
     encryptionKey
   })
   const media = blobstore(path.join(dir, 'media'))

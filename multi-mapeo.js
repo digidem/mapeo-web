@@ -40,7 +40,8 @@ module.exports = class MultiMapeo extends EventEmitter {
     const dir = path.join(storageLocation, 'instances', key)
     mkdirp.sync(dir)
 
-    const osm = osmdb(dir, {
+    const osm = osmdb({
+      dir,
       encryptionKey: Buffer.from(key, 'hex')
     })
     const media = blobstore(path.join(dir, 'media'))

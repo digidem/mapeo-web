@@ -27,7 +27,7 @@ require('yargs')
     default: DEFAULT_NAME
   })
   .option('gc-delay', {
-    describe: 'Delay before garbage collecting Mapeo instances',
+    describe: 'Delay until instances are released for garbage collection',
     type: 'number',
     default: DEFAULT_GC_DELAY
   })

@@ -30,10 +30,10 @@ class MapeoWeb {
     this.fastify.register(require('fastify-websocket'))
 
     // Leaving room for other major minor and patch versions.
-    this.fastify.get('/replicate/v1/:key', { websocket: true }, async (connection, req, params) => {
-      const { key } = params
+    this.fastify.get('/replicate/v1/:discoveryKey', { websocket: true }, async (connection, req, params) => {
+      const { discoveryKey } = params
 
-      this.permissions.hasProjectKeyForDiscoveryKey(key, (err, projectKey) => {
+      this.permissions.getProjectKeyForDiscoveryKey(discoveryKey, (err, projectKey) => {
         if (err || !projectKey) {
           return connection.end('Invalid Key')
         }
@@ -41,23 +41,30 @@ class MapeoWeb {
       })
     })
 
-    this.fastify.put('/permissions/project/:key', (req, reply) => {
-      const { key } = req.params
-      this.permissions.addProjectKey(key, (err) => {
+    this.fastify.post('/projects/', (req, reply) => {
+      const { projectKey } = req.body
+      this.permissions.addProjectKey(projectKey, (err) => {
         if (err) return reply.send(err)
         else reply.send({ added: true })
       })
     })
 
-    this.fastify.delete('/permissions/project/:key', (req, reply) => {
-      const { key } = req.params
-      this.permissions.removeProjectKey(key, (err) => {
-        if (err) return reply.send(err)
-        else reply.send({ added: true })
+    this.fastify.delete('/projects/:discoveryKey', (req, reply) => {
+      const { discoveryKey } = req.params
+      this.getProjectKeyForDiscoveryKey(discoveryKey, (err, projectKey) => {
+        if (err) {
+          reply.status(404)
+          reply.send(err)
+          return
+        }
+        this.permissions.removeProjectKey(projectKey, (err) => {
+          if (err) return reply.send(err)
+          else reply.send({ added: true })
+        })
       })
     })
 
-    this.fastify.get('/permissions/project/', (req, reply) => {
+    this.fastify.get('/projects/', (req, reply) => {
       this.permissions.getProjectKeys((err, keys) => {
         if (err) return reply.send(err)
         else reply.send(keys)

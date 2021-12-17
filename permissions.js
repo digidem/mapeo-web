@@ -1,7 +1,7 @@
 const path = require('path')
 const level = require('level')
 const mkdirp = require('mkdirp')
-const crypto = require('hypercore-crypto')
+const discoveryKey = require('./discoveryKey')
 
 class Permissions {
   constructor ({ storageLocation }) {
@@ -12,24 +12,16 @@ class Permissions {
     })
   }
 
-  hasProjectKey (key, cb) {
-    this.db.get(discoveryKey(key), (err, value) => {
-      cb(null, !err && !!value)
-    })
+  getProjectKeyForDiscoveryKey (discoveryKey, cb) {
+    this.db.get(discoveryKey, cb)
   }
 
-  hasProjectKeyForDiscoveryKey (discoveryKey, cb) {
-    this.db.get(discoveryKey, (err, value) => {
-      cb(null, !err && value)
-    })
+  addProjectKey (projectKey, cb) {
+    this.db.put(discoveryKey(projectKey), projectKey, cb)
   }
 
-  addProjectKey (key, cb) {
-    this.db.put(discoveryKey(key), key, cb)
-  }
-
-  removeProjectKey (key, cb) {
-    this.db.del(discoveryKey(key), cb)
+  removeProjectKey (projectKey, cb) {
+    this.db.del(discoveryKey(projectKey), cb)
   }
 
   getProjectKeys (cb) {
@@ -43,17 +35,6 @@ class Permissions {
       keys.push(value)
       iterator.next(kick)
     }
-  }
-}
-
-function discoveryKey (projectKey) {
-  if (typeof projectKey === 'string') {
-    projectKey = Buffer.from(projectKey, 'hex')
-  }
-  if (Buffer.isBuffer(projectKey) && projectKey.length === 32) {
-    return crypto.discoveryKey(projectKey).toString('hex')
-  } else {
-    throw new Error('projectKey must be a 32-byte Buffer, or a hex string encoding a 32-byte buffer')
   }
 }
 

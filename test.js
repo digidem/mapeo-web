@@ -113,8 +113,16 @@ test('Sync between a mapeo instance and a server', (t) => {
 
   function putProject (port, cb) {
     const keyString = projectKey.toString('hex')
-    const putURL = `http://localhost:${port}/permissions/project/${keyString}`
-    fetch(putURL, { method: 'put' }).then((res) => {
+    const putURL = `http://localhost:${port}/projects/`
+    fetch(putURL, {
+      method: 'post',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        projectKey: keyString
+      })
+    }).then((res) => {
       t.ok(res.ok, 'Able to put key into mapeo-web')
       cb(null)
     }).catch(cb)

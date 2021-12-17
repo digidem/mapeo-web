@@ -2,6 +2,7 @@ const makeFastify = require('fastify')
 
 const Permissions = require('./permissions')
 const MultiMapeo = require('./multi-mapeo')
+const discoveryKey = require('./discoveryKey')
 
 module.exports = {
   create
@@ -45,7 +46,12 @@ class MapeoWeb {
       const { projectKey } = req.body
       this.permissions.addProjectKey(projectKey, (err) => {
         if (err) return reply.send(err)
-        else reply.send({ added: true })
+        else {
+          reply.send({
+            added: true,
+            id: discoveryKey(projectKey)
+          })
+        }
       })
     })
 

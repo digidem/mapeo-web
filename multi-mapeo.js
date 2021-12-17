@@ -30,11 +30,13 @@ module.exports = class MultiMapeo extends EventEmitter {
     this.gcTimeout = gcTimeout || DEFAULT_GC_DELAY
     this.id = id
     this.name = name || DEFAULT_NAME
+    this.closed = false
 
     // track initialized mapeo instances
     this.instances = new Map()
     // Track active WS connections for mapeo instances
     this.connections = new Map()
+    this.timeouts = new Map()
   }
 
   get (projectKey) {
@@ -113,17 +115,24 @@ module.exports = class MultiMapeo extends EventEmitter {
 
     connection.once('close', () => {
       connections.delete(connection)
-      setTimeout(() => {
+
+      clearTimeout(this.timeouts.get(projectKey))
+
+      const timer = setTimeout(() => {
         // New connections have been made since the last time
         if (connections.size()) return
         this.unget(projectKey, (e) => {
           if (e) console.error(e)
         })
       }, this.gcTimeout)
+
+      this.timeouts.put(projectKey, timer)
     })
   }
 
   close (cb) {
+    if(this.closed) return process.nextTick(cb)
+    this.closed = true
     const total = this.instances.size
     let count = 0
     let lastError = null

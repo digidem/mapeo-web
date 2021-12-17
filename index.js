@@ -33,11 +33,11 @@ class MapeoWeb {
     this.fastify.get('/replicate/v1/:key', { websocket: true }, async (connection, req, params) => {
       const { key } = params
 
-      this.permissions.hasProjectKey(key, (err, has) => {
-        if (err || !has) {
+      this.permissions.hasProjectKeyForDiscoveryKey(key, (err, projectKey) => {
+        if (err || !projectKey) {
           return connection.end('Invalid Key')
         }
-        this.multiMapeo.replicate(connection, req, key)
+        this.multiMapeo.replicate(connection, req, projectKey)
       })
     })
 

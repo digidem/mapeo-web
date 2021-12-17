@@ -63,7 +63,7 @@ module.exports = class MultiMapeo extends EventEmitter {
 
     mapeo.sync.on('peer', (peer) => {
     // TODO: Should we track / report sync progress somewhere?
-      mapeo.sync.replicate(peer, {deviceType: DEVICE_TYPE })
+      mapeo.sync.replicate(peer, { deviceType: DEVICE_TYPE })
     })
 
     return mapeo

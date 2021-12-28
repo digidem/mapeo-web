@@ -7,6 +7,7 @@ const blobstore = require('safe-fs-blob-store')
 const Mapeo = require('@mapeo/core')
 const envPaths = require('env-paths')
 const EventEmitter = require('events')
+const pino = require('pino')
 
 const discoveryKey = require('./discoveryKey')
 
@@ -22,7 +23,8 @@ module.exports = class MultiMapeo extends EventEmitter {
     storageLocation = DEFAULT_STORAGE,
     gcTimeout = DEFAULT_GC_DELAY,
     id = crypto.randomBytes(8).toString('hex'),
-    name = DEFAULT_NAME
+    name = DEFAULT_NAME,
+    logger = pino()
   }) {
     super()
     // TODO: Add leveldb to track
@@ -30,6 +32,7 @@ module.exports = class MultiMapeo extends EventEmitter {
     this.gcTimeout = gcTimeout || DEFAULT_GC_DELAY
     this.id = id
     this.name = name || DEFAULT_NAME
+    this.logger = logger.child({ source: 'multi-mapeo' })
     this.closed = false
 
     // track initialized mapeo instances
@@ -41,7 +44,11 @@ module.exports = class MultiMapeo extends EventEmitter {
 
   get (projectKey) {
     if (this.instances.has(projectKey)) return this.instances.get(projectKey)
+
     const key = discoveryKey(projectKey)
+
+    this.logger.info({ projectKey, discoveryKey: key }, 'Initializing project')
+
     const { storageLocation, id } = this
     const dir = path.join(storageLocation, 'instances', key)
     mkdirp.sync(dir)
@@ -67,7 +74,9 @@ module.exports = class MultiMapeo extends EventEmitter {
     })
 
     mapeo.sync.on('peer', (peer) => {
-    // TODO: Should we track / report sync progress somewhere?
+      const { id, host, port, type } = peer
+      this.logger.info({ peer: { id, host, port, type } }, 'Replicating with peer')
+      // TODO: Should we track / report sync progress somewhere?
       mapeo.sync.replicate(peer, { deviceType: DEVICE_TYPE })
     })
 
@@ -118,9 +127,14 @@ module.exports = class MultiMapeo extends EventEmitter {
 
       clearTimeout(this.timeouts.get(projectKey))
 
+      this.logger.info({ projectKey }, 'Starting timeout for gc')
       const timer = setTimeout(() => {
         // New connections have been made since the last time
-        if (connections.size()) return
+        if (connections.size()) {
+          this.logger.info({ projectKey }, 'Aborting gc, has connections')
+          return
+        }
+        this.logger.info({ projectKey }, 'Performing gc')
         this.unget(projectKey, (e) => {
           if (e) console.error(e)
         })
@@ -132,6 +146,7 @@ module.exports = class MultiMapeo extends EventEmitter {
 
   close (cb) {
     if (this.closed) return process.nextTick(cb)
+    this.logger.info('Closing')
     this.closed = true
     const total = this.instances.size
     let count = 0

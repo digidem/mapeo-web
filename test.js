@@ -6,7 +6,7 @@ const crypto = require('crypto')
 const getPort = require('get-port')
 const osmdb = require('osm-p2p')
 const blobstore = require('safe-fs-blob-store')
-const fetch = require('cross-fetch')
+const Client = require('./client')
 
 const MapeoWeb = require('./')
 
@@ -31,7 +31,7 @@ function makeMapeo (dir, encryptionKey) {
 }
 
 test('Sync between a mapeo instance and a server', (t) => {
-  t.plan(13)
+  t.plan(14)
   const mapeoDir = tmp.dirSync().name
   const serverDir = tmp.dirSync().name
 
@@ -52,7 +52,7 @@ test('Sync between a mapeo instance and a server', (t) => {
       putProject(port, (e) => {
         t.error(e, 'added project')
         writeOSM((e, id) => {
-          mapeo.sync.once('peer', (peer) => verifyPeer(peer, id))
+          mapeo.sync.once('peer', (peer) => verifyPeer(peer, id, port))
           t.error(e, 'initialized OSM data')
           writeMedia((e) => {
             t.error(e, 'initialized media')
@@ -63,13 +63,32 @@ test('Sync between a mapeo instance and a server', (t) => {
     })
   })
 
-  function verifyPeer (peer, osmId) {
+  function verifyPeer (peer, osmId, port) {
     t.pass('Got peer')
     const sync = mapeo.sync.replicate(peer)
     sync.on('end', () => {
       t.pass('Finished sync')
-      verifyData(osmId, finishUp)
+      verifyData(osmId, () => {
+        listAndRemove(port, finishUp)
+      })
     })
+  }
+
+  function listAndRemove (port, cb) {
+    const keyString = projectKey.toString('hex')
+    const url = `http://localhost:${port}`
+
+    Client.list({ url }).then(async (keys) => {
+      t.deepEqual(keys, [{ projectKey: keyString }], 'Project in list on server')
+
+      await Client.remove({ url, projectKey })
+
+      const finalKeys = await Client.list({ url })
+
+      t.deepEqual(finalKeys, [], 'Project removed from server')
+
+      cb(null)
+    }).catch(cb)
   }
 
   function verifyData (osmId, cb) {
@@ -113,18 +132,10 @@ test('Sync between a mapeo instance and a server', (t) => {
 
   function putProject (port, cb) {
     const keyString = projectKey.toString('hex')
-    const putURL = `http://localhost:${port}/projects/`
-    fetch(putURL, {
-      method: 'post',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        projectKey: keyString
-      })
-    }).then(async (res) => {
-      t.ok(res.ok, 'Able to put key into mapeo-web')
-      const { id } = await res.json()
+    const url = `http://localhost:${port}`
+
+    Client.add({ url, projectKey: keyString }).then(async (res) => {
+      const { id } = res
       t.ok(id, 'Got discoveryKey from add')
       cb(null)
     }).catch(cb)

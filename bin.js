@@ -8,30 +8,31 @@ const DEFAULT_NAME = 'Mapeo@' + HOSTNAME
 
 require('yargs')
   .scriptName('mapeo-web')
-  .option('p', {
-    alias: 'port',
-    describe: 'The port to listen on HTTP connections from',
-    type: 'number',
-    default: 0
-  })
-  .option('s', {
-    alias: 'storage-location',
-    describe: 'Where to store data for mapeo-web',
-    type: 'string',
-    default: DEFAULT_STORAGE
-  })
-  .option('n', {
-    alias: 'name',
-    describe: 'The name to display to peers',
-    type: 'string',
-    default: DEFAULT_NAME
-  })
-  .option('gc-delay', {
-    describe: 'Delay until instances are released for garbage collection',
-    type: 'number',
-    default: DEFAULT_GC_DELAY
-  })
-  .command('$0', 'run the mapeo-web server', () => {}, (argv) => {
+  .command('$0', 'run the mapeo-web server', (yargs) => {
+    yargs.option('p', {
+      alias: 'port',
+      describe: 'The port to listen on HTTP connections from',
+      type: 'number',
+      default: 0
+    })
+      .option('s', {
+        alias: 'storage-location',
+        describe: 'Where to store data for mapeo-web',
+        type: 'string',
+        default: DEFAULT_STORAGE
+      })
+      .option('n', {
+        alias: 'name',
+        describe: 'The name to display to peers',
+        type: 'string',
+        default: DEFAULT_NAME
+      })
+      .option('gc-delay', {
+        describe: 'Delay until instances are released for garbage collection',
+        type: 'number',
+        default: DEFAULT_GC_DELAY
+      })
+  }, (argv) => {
     const MapeoWeb = require('./')
     const mapeoWeb = MapeoWeb.create(argv)
 
@@ -40,5 +41,59 @@ require('yargs')
     mapeoWeb.listen(port, () => {
       console.log('Starting service', mapeoWeb.address())
     })
+  })
+  .command('add <projectKey> <url>', 'Add a project to a mapeo-web server', (yargs) => {
+    yargs.positional('projectKey', {
+      describe: 'The Mapeo projectKey',
+      type: 'string'
+    }).positional('url', {
+      describe: 'The Mapeo Web instance to connect to',
+      type: 'string'
+    })
+  }, async (argv) => {
+    const Client = require('./client')
+    const { url, projectKey } = argv
+
+    try {
+      const { id } = await Client.add({ url, projectKey })
+      console.log(`Added ${projectKey} as ${id}`)
+    } catch (e) {
+      console.error(`Could not add ${projectKey} to ${url}:\n${e.stack}`)
+    }
+  })
+  .command('remove <projectKey> <url>', 'Remove a project from a mapeo-web server', (yargs) => {
+    yargs.positional('projectKey', {
+      describe: 'The Mapeo projectKey',
+      type: 'string'
+    }).positional('url', {
+      describe: 'The Mapeo Web instance to connect to',
+      type: 'string'
+    })
+  }, async (argv) => {
+    const Client = require('./client')
+    const { url, projectKey } = argv
+
+    try {
+      await Client.remove({ url, projectKey })
+      console.log(`Removed project key ${projectKey}`)
+    } catch (e) {
+      console.error(`Could not remove ${projectKey} from ${url}:\n${e.stack}`)
+    }
+  })
+  .command('list <url>', 'List known projects on a mapeo-web server', (yargs) => {
+    yargs.positional('url', {
+      describe: 'The Mapeo Web instance to connect to',
+      type: 'string'
+    })
+  }, async (argv) => {
+    const Client = require('./client')
+    const { url } = argv
+
+    try {
+      const keys = await Client.list({ url })
+      console.log(keys)
+    } catch (e) {
+      console.error(`Could not list projects on ${url}:\n${e.stack}`)
+    }
   })
   .parse()

@@ -131,7 +131,7 @@ module.exports = class MultiMapeo extends EventEmitter {
   }
 
   close (cb) {
-    if(this.closed) return process.nextTick(cb)
+    if (this.closed) return process.nextTick(cb)
     this.closed = true
     const total = this.instances.size
     let count = 0

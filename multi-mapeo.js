@@ -36,21 +36,24 @@ module.exports = class MultiMapeo extends EventEmitter {
     this.closed = false
 
     // track initialized mapeo instances
+    // Maps discoveryKey to instance
     this.instances = new Map()
     // Track active WS connections for mapeo instances
+    // Maps discoveryKey to Set of streams
     this.connections = new Map()
+    // Maps discoveryKey to setTimeout id
     this.timeouts = new Map()
   }
 
   get (projectKey) {
-    if (this.instances.has(projectKey)) return this.instances.get(projectKey)
-
     const key = discoveryKey(projectKey)
+    if (this.instances.has(key)) return this.instances.get(key)
 
-    this.logger.info({ projectKey, discoveryKey: key }, 'Initializing project')
+    this.logger.info({ discoveryKey: key }, 'Initializing project')
 
     const { storageLocation, id } = this
     const dir = path.join(storageLocation, 'instances', key)
+
     mkdirp.sync(dir)
 
     const osm = osmdb({
@@ -65,7 +68,7 @@ module.exports = class MultiMapeo extends EventEmitter {
       this.index.close(cb)
     }
 
-    this.instances.set(projectKey, mapeo)
+    this.instances.set(key, mapeo)
 
     mapeo.sync.setName(this.name)
 
@@ -83,11 +86,11 @@ module.exports = class MultiMapeo extends EventEmitter {
     return mapeo
   }
 
-  unget (projectKey, cb) {
-    if (!this.instances.has(projectKey)) return process.nextTick(cb)
+  unget (discoveryKey, cb) {
+    if (!this.instances.has(discoveryKey)) return process.nextTick(cb)
     // TODO: Close mapeo instance
-    this.instances.get(projectKey).close((err) => {
-      this.instances.delete(projectKey)
+    this.instances.get(discoveryKey).close((err) => {
+      this.instances.delete(discoveryKey)
       if (err) return cb(err)
     })
   }
@@ -111,36 +114,38 @@ module.exports = class MultiMapeo extends EventEmitter {
     // TODO: Add cleaner method for this
     mapeo.sync.state.addWebsocketPeer(connection, info)
     mapeo.sync.addPeer(connection, info)
+
+    this.trackConnection(connection, discoveryKey(projectKey))
   }
 
-  trackConnection (connection, projectKey) {
-    if (!this.connections.has(projectKey)) {
-      this.connections.put(projectKey, new Set())
+  trackConnection (connection, discoveryKey) {
+    if (!this.connections.has(discoveryKey)) {
+      this.connections.set(discoveryKey, new Set())
     }
 
-    const connections = this.connections.get(projectKey)
+    const connections = this.connections.get(discoveryKey)
 
     connections.add(connection)
 
     connection.once('close', () => {
       connections.delete(connection)
 
-      clearTimeout(this.timeouts.get(projectKey))
+      clearTimeout(this.timeouts.get(discoveryKey))
 
-      this.logger.info({ projectKey }, 'Starting timeout for gc')
+      this.logger.info({ discoveryKey }, 'Starting timeout for gc')
       const timer = setTimeout(() => {
         // New connections have been made since the last time
-        if (connections.size()) {
-          this.logger.info({ projectKey }, 'Aborting gc, has connections')
+        if (connections.size) {
+          this.logger.info({ discoveryKey }, 'Aborting gc, has connections')
           return
         }
-        this.logger.info({ projectKey }, 'Performing gc')
-        this.unget(projectKey, (e) => {
+        this.logger.info({ discoveryKey }, 'Performing gc')
+        this.unget(discoveryKey, (e) => {
           if (e) console.error(e)
         })
       }, this.gcTimeout)
 
-      this.timeouts.put(projectKey, timer)
+      this.timeouts.set(discoveryKey, timer)
     })
   }
 

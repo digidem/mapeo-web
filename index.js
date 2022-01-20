@@ -48,17 +48,31 @@ class MapeoWeb {
       })
     })
 
-    this.fastify.post('/projects/', (req, reply) => {
-      const { projectKey } = req.body
-      this.permissions.addProjectKey(projectKey, (err) => {
-        if (err) return reply.send(err)
-        else {
-          reply.send({
-            added: true,
-            id: discoveryKey(projectKey)
-          })
+    this.fastify.post('/projects/', {
+      schema: {
+        body: {
+          type: 'object',
+          properties: {
+            projectKey: {
+              type: 'string',
+              minLength: 64,
+              maxLength: 64
+            }
+          }
         }
-      })
+      },
+      handler: (req, reply) => {
+        const { projectKey } = req.body
+        this.permissions.addProjectKey(projectKey, (err) => {
+          if (err) return reply.send(err)
+          else {
+            reply.send({
+              added: true,
+              id: discoveryKey(projectKey)
+            })
+          }
+        })
+      }
     })
 
     this.fastify.delete('/projects/:discoveryKey', (req, reply) => {

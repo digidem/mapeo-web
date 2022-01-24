@@ -42,6 +42,7 @@ class MapeoWeb {
 
       this.permissions.getProjectKeyForDiscoveryKey(discoveryKey, (err, projectKey) => {
         if (err || !projectKey) {
+          this.logger.error({ discoveryKey }, 'Invalid project key')
           return connection.end('Invalid Key')
         }
         this.multiMapeo.replicate(connection, req, projectKey)

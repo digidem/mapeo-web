@@ -154,6 +154,9 @@ module.exports = class MultiMapeo extends EventEmitter {
     this.logger.info('Closing')
     this.closed = true
     const total = this.instances.size
+
+    if (!total) return process.nextTick(cb)
+
     let count = 0
     let lastError = null
     for (const mapeo of this.instances.values()) {

@@ -239,7 +239,7 @@ test('Mapeo instance closes after timeout from last sync completion', (t) => {
           t.fail('Didnt close in time')
           other.removeListener('close', onClosed)
           finishUp()
-        }, 1500)
+        }, 3000)
 
         function onClosed () {
           t.pass('Instance closed within the timeout')

@@ -11,7 +11,7 @@
   },
   "license": "ISC",
   "dependencies": {
-    "@mapeo/core": "github:digidem/mapeo-core#ws-sync",
+    "@mapeo/core": "git+https://github.com/digidem/mapeo-core.git#ws-sync",
     "cross-fetch": "^3.0.6",
     "env-paths": "^2.2.0",
     "fastify": "^3.8.0",

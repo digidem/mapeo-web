@@ -54,8 +54,38 @@ function makeWeb (storageLocation, cb, opts = {}) {
   }).catch(cb)
 }
 
+function writeMedia (mapeo, cb) {
+  const ws = mapeo.media.createWriteStream('foo.txt')
+  ws.on('finish', cb)
+  ws.on('error', cb)
+  ws.end('bar')
+}
+
+function writeOSM (mapeo, cb) {
+  const observation = { lat: 1, lon: 2, type: 'observation' }
+  mapeo.osm.create(observation, cb)
+}
+
+function verifyData ({ webPeer, osmId, tape }, cb) {
+  webPeer.osm.get(osmId, (e, node) => {
+    tape.error(e, 'No error getting OSM')
+    tape.ok(node, 'OSM node exists')
+    webPeer.media.exists('foo.txt', (err, exists) => {
+      tape.error(err, 'No error reading file')
+      tape.ok(exists, 'File exists')
+      cb()
+    })
+  })
+}
+
+function getObservationCount (mapeo, cb) {
+  mapeo.observationList((err, results) => {
+    cb(err, results.length)
+  })
+}
+
 test('Sync between a mapeo instance and a server', (t) => {
-  t.plan(14)
+  t.plan(16)
   const mapeoDir = tmp.dirSync().name
   const serverDir = tmp.dirSync().name
 
@@ -68,10 +98,10 @@ test('Sync between a mapeo instance and a server', (t) => {
     mapeo.osm.ready(() => {
       putProject(port, (e) => {
         t.error(e, 'added project')
-        writeOSM((e, id) => {
+        writeOSM(mapeo, (e, id) => {
           mapeo.sync.once('peer', (peer) => verifyPeer(peer, id, port))
           t.error(e, 'initialized OSM data')
-          writeMedia((e) => {
+          writeMedia(mapeo, (e) => {
             t.error(e, 'initialized media')
             replicate(port)
           })
@@ -84,7 +114,15 @@ test('Sync between a mapeo instance and a server', (t) => {
       const sync = mapeo.sync.replicate(peer)
       sync.on('end', () => {
         t.pass('Finished sync')
-        verifyData(osmId, () => {
+        getObservationCount(mapeo, (err, count) => {
+          t.error(err, 'Retrieved observation count for client')
+          t.equal(count, 1, 'Observation count for client has not changed')
+        })
+        verifyData({
+          webPeer: mapeoWeb.get(projectKey),
+          osmId,
+          tape: t
+        }, () => {
           listAndRemove(port, finishUp)
         })
       })
@@ -107,20 +145,6 @@ test('Sync between a mapeo instance and a server', (t) => {
       }).catch(cb)
     }
 
-    function verifyData (osmId, cb) {
-      const local = mapeoWeb.get(projectKey)
-
-      local.osm.get(osmId, (e, node) => {
-        t.error(e, 'No erorr getting OSM')
-        t.ok(node, 'OSM node exists')
-        local.media.exists('foo.txt', (err, exists) => {
-          t.error(err, 'No error reading file')
-          t.ok(exists, 'File exists')
-          cb()
-        })
-      })
-    }
-
     function finishUp (err) {
       if (err) t.error(err)
       mapeo.close(() => {
@@ -136,16 +160,121 @@ test('Sync between a mapeo instance and a server', (t) => {
       mapeo.sync.connectWebsocket(url, projectKey)
     }
 
-    function writeMedia (cb) {
-      const ws = mapeo.media.createWriteStream('foo.txt')
-      ws.on('finish', cb)
-      ws.on('error', cb)
-      ws.end('bar')
+    function putProject (port, cb) {
+      const keyString = projectKey.toString('hex')
+      const url = `http://localhost:${port}`
+
+      Client.add({ url, projectKey: keyString }).then(async (res) => {
+        const { id } = res
+        t.ok(id, 'Got discoveryKey from add')
+        cb(null)
+      }).catch(cb)
+    }
+  })
+})
+
+/**
+ * 1. Peer 1 creates data. Syncs data to web.
+ * 2. Peer 2 _does not_ create data. Attempts to sync with web.
+ */
+test('Sync between multiple mapeo instances and a server', (t) => {
+  t.plan(26)
+  const mapeoDir1 = tmp.dirSync().name
+  const mapeoDir2 = tmp.dirSync().name
+  const serverDir = tmp.dirSync().name
+
+  const projectKey = crypto.randomBytes(32)
+
+  const mapeo1 = makeMapeo(mapeoDir1, projectKey)
+  const mapeo2 = makeMapeo(mapeoDir2, projectKey)
+
+  makeWeb(serverDir, (err, { mapeoWeb, port, serverId }) => {
+    t.error(err, 'able to init mapeo-web')
+    mapeo1.osm.ready(() => {
+      putProject(port, (e) => {
+        t.error(e, 'added project')
+        writeOSM(mapeo1, (e, id) => {
+          mapeo1.sync.once('peer', (peer) => verifyPeer1(peer, id, port))
+          t.error(e, 'initialized OSM data')
+          writeMedia(mapeo1, (e) => {
+            t.error(e, 'initialized media')
+            replicate(mapeo1, port)
+          })
+        })
+      })
+    })
+
+    function verifyPeer1 (peer, osmId, port) {
+      t.pass('Got peer')
+      const sync = mapeo1.sync.replicate(peer)
+
+      sync.on('end', () => {
+        t.pass('Finished sync')
+        getObservationCount(mapeo1, (err, count) => {
+          t.error(err, 'Retrieved observation count for first client')
+          t.equal(count, 1, 'Observation count for first client has not changed')
+        })
+        verifyData({ webPeer: mapeoWeb.get(projectKey), osmId, tape: t }, () => {
+          syncPeer2(osmId)
+        })
+      })
     }
 
-    function writeOSM (cb) {
-      const observation = { lat: 1, lon: 2, type: 'observation' }
-      mapeo.osm.create(observation, cb)
+    function syncPeer2 (osmId) {
+      mapeo2.osm.ready(() => {
+        putProject(port, (e) => {
+          t.error(e, 'added project')
+          mapeo2.sync.once('peer', (peer) => verifyPeer2(peer, osmId, port))
+          replicate(mapeo2, port)
+        })
+      })
+    }
+
+    function verifyPeer2 (peer, osmId, port) {
+      t.pass('Got peer')
+      const sync = mapeo2.sync.replicate(peer)
+      sync.on('end', () => {
+        t.pass('Finished sync')
+        getObservationCount(mapeo2, (err, count) => {
+          t.error(err, 'Retrieved observation count for second client')
+          t.equal(count, 1, 'Observation count for second client has updated')
+        })
+        verifyData({ webPeer: mapeoWeb.get(projectKey), osmId, tape: t }, () => {
+          listAndRemove(port, finishUp)
+        })
+      })
+    }
+
+    function listAndRemove (port, cb) {
+      const keyString = projectKey.toString('hex')
+      const url = `http://localhost:${port}`
+
+      Client.list({ url }).then(async (keys) => {
+        t.deepEqual(keys, [{ discoveryKey: discoveryKey(keyString) }], 'Project in list on server')
+
+        await Client.remove({ url, projectKey })
+
+        const finalKeys = await Client.list({ url })
+
+        t.deepEqual(finalKeys, [], 'Project removed from server')
+
+        cb(null)
+      }).catch(cb)
+    }
+
+    function finishUp (err) {
+      if (err) t.error(err)
+      mapeo1.close(() => {
+        mapeoWeb.close((err) => {
+          t.error(err, 'Closed with no errors')
+          t.end()
+        })
+      })
+    }
+
+    function replicate (mapeo, port) {
+      const url = `ws://localhost:${port}/`
+      mapeo.sync.connectWebsocket(url, projectKey)
     }
 
     function putProject (port, cb) {

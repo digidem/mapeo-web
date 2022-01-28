@@ -66,21 +66,31 @@ function writeOSM (mapeo, cb) {
   mapeo.osm.create(observation, cb)
 }
 
-function verifyData ({ webPeer, osmId, tape }, cb) {
-  webPeer.osm.get(osmId, (e, node) => {
-    tape.error(e, 'No error getting OSM')
-    tape.ok(node, 'OSM node exists')
-    webPeer.media.exists('foo.txt', (err, exists) => {
-      tape.error(err, 'No error reading file')
-      tape.ok(exists, 'File exists')
-      cb()
-    })
-  })
-}
+// Verifies observation and media data for a peer given an OSM id
+function verifyData (peer, { osmId, tape }, cb) {
+  peer.media.exists('foo.txt', (err, exists) => {
+    tape.error(err, 'No error reading file')
+    tape.ok(exists, 'File exists')
 
-function getObservationCount (mapeo, cb) {
-  mapeo.observationList((err, results) => {
-    cb(err, results.length)
+    /**
+    * TODO: Some weird stuff going on where calling `osm.get` here returns different result than if it's invoked as the first call in `verifyData`
+    * This one returns the desired result while the other scenario returns an empty array. Maybe some kind of race condition?
+    */
+    peer.osm.get(osmId, (err, osmResult) => {
+      tape.error(err, 'No error getting OSM')
+
+      // `osmResult` is of type `[OsmElement] | undefined`, which is super tricky
+      const [node] = osmResult || []
+
+      tape.ok(node, 'OSM node exists')
+
+      peer.observationList((err, observations) => {
+        tape.error(err, 'No error getting observation list')
+        tape.ok(!!observations.find(({ id }) => id === osmId), 'Matching observation exists')
+
+        cb()
+      })
+    })
   })
 }
 
@@ -96,13 +106,13 @@ test('Sync between a mapeo instance and a server', (t) => {
   makeWeb(serverDir, (err, { mapeoWeb, port, serverId }) => {
     t.error(err, 'able to init mapeo-web')
     mapeo.osm.ready(() => {
-      putProject(port, (e) => {
-        t.error(e, 'added project')
-        writeOSM(mapeo, (e, id) => {
-          mapeo.sync.once('peer', (peer) => verifyPeer(peer, id, port))
-          t.error(e, 'initialized OSM data')
-          writeMedia(mapeo, (e) => {
-            t.error(e, 'initialized media')
+      putProject(port, (err) => {
+        t.error(err, 'added project')
+        writeOSM(mapeo, (err, node) => {
+          mapeo.sync.once('peer', (peer) => verifyPeer(peer, node.id, port))
+          t.error(err, 'initialized OSM data')
+          writeMedia(mapeo, (err) => {
+            t.error(err, 'initialized media')
             replicate(port)
           })
         })
@@ -114,12 +124,7 @@ test('Sync between a mapeo instance and a server', (t) => {
       const sync = mapeo.sync.replicate(peer)
       sync.on('end', () => {
         t.pass('Finished sync')
-        getObservationCount(mapeo, (err, count) => {
-          t.error(err, 'Retrieved observation count for client')
-          t.equal(count, 1, 'Observation count for client has not changed')
-        })
-        verifyData({
-          webPeer: mapeoWeb.get(projectKey),
+        verifyData(mapeoWeb.get(projectKey), {
           osmId,
           tape: t
         }, () => {
@@ -191,30 +196,27 @@ test('Sync between multiple mapeo instances and a server', (t) => {
   makeWeb(serverDir, (err, { mapeoWeb, port, serverId }) => {
     t.error(err, 'able to init mapeo-web')
     mapeo1.osm.ready(() => {
-      putProject(port, (e) => {
-        t.error(e, 'added project')
-        writeOSM(mapeo1, (e, id) => {
-          mapeo1.sync.once('peer', (peer) => verifyPeer1(peer, id, port))
-          t.error(e, 'initialized OSM data')
-          writeMedia(mapeo1, (e) => {
-            t.error(e, 'initialized media')
+      putProject(port, (err) => {
+        t.error(err, 'added project')
+        writeOSM(mapeo1, (err, node) => {
+          mapeo1.sync.once('peer', (peer) => verifyWeb(peer, node.id, port))
+          t.error(err, 'initialized OSM data')
+          writeMedia(mapeo1, (err) => {
+            t.error(err, 'initialized media')
             replicate(mapeo1, port)
           })
         })
       })
     })
 
-    function verifyPeer1 (peer, osmId, port) {
+    // Ensure that data synced to web server matches what was replicated from peer 1
+    function verifyWeb (peer, osmId, port) {
       t.pass('Got peer')
       const sync = mapeo1.sync.replicate(peer)
 
       sync.on('end', () => {
         t.pass('Finished sync')
-        getObservationCount(mapeo1, (err, count) => {
-          t.error(err, 'Retrieved observation count for first client')
-          t.equal(count, 1, 'Observation count for first client has not changed')
-        })
-        verifyData({ webPeer: mapeoWeb.get(projectKey), osmId, tape: t }, () => {
+        verifyData(mapeoWeb.get(projectKey), { osmId, tape: t }, () => {
           syncPeer2(osmId)
         })
       })
@@ -222,24 +224,23 @@ test('Sync between multiple mapeo instances and a server', (t) => {
 
     function syncPeer2 (osmId) {
       mapeo2.osm.ready(() => {
-        putProject(port, (e) => {
-          t.error(e, 'added project')
+        putProject(port, (err) => {
+          t.error(err, 'added project')
           mapeo2.sync.once('peer', (peer) => verifyPeer2(peer, osmId, port))
           replicate(mapeo2, port)
         })
       })
     }
 
+    // Ensure data in peer 2 matches what was replicated from the web server
     function verifyPeer2 (peer, osmId, port) {
       t.pass('Got peer')
       const sync = mapeo2.sync.replicate(peer)
       sync.on('end', () => {
         t.pass('Finished sync')
-        getObservationCount(mapeo2, (err, count) => {
-          t.error(err, 'Retrieved observation count for second client')
-          t.equal(count, 1, 'Observation count for second client has updated')
-        })
-        verifyData({ webPeer: mapeoWeb.get(projectKey), osmId, tape: t }, () => {
+        verifyData(mapeo2, { osmId, tape: t }, () => {
+          // TODO: Ensure data on web server was persisted before ending? i.e. verifyData(mapeoWeb.get(projectKey), ...)
+
           listAndRemove(port, finishUp)
         })
       })

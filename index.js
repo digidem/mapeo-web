@@ -108,7 +108,7 @@ class MapeoWeb {
   }
 
   listen (...args) {
-    this.fastify.listen(...args)
+    return this.fastify.listen(...args)
   }
 
   address () {

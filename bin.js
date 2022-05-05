@@ -48,6 +48,7 @@ require('yargs')
     }
 
     mapeoWeb.listen(port)
+      .then((address) => console.log(`server listening on ${address}`))
   })
   .command('add <projectKey> <url>', 'Add a project to a mapeo-web server', (yargs) => {
     yargs.positional('projectKey', {

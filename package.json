@@ -14,7 +14,7 @@
     "@mapeo/core": "git+https://github.com/digidem/mapeo-core.git#ws-sync",
     "cross-fetch": "^3.0.6",
     "env-paths": "^2.2.0",
-    "fastify": "^3.8.0",
+    "fastify": "^5.7.3",
     "fastify-websocket": "^2.0.11",
     "hypercore-crypto": "^1.0.0",
     "level": "^6.0.1",
